@@ -1,0 +1,39 @@
+# swift-foundation as a Bazel module, for Isomer.
+#
+# This is AttilaTheFun's fork of swiftlang/swift-foundation, branch `isomer`
+# (cut from swift-6.3.2-RELEASE). Upstream builds with SwiftPM and CMake; these
+# Bazel files are the fork's own and touch no upstream file, so merging the next
+# release tag stays a plain merge. Isomer builds its `Foundation` for non-Apple
+# platforms (wasm, Android, Linux, Windows) from the targets here; on Apple
+# platforms Foundation is Apple's.
+#
+# The root module (Isomer, or an app) registers the Swift toolchains and picks
+# the platform; nothing here does.
+module(
+    name = "swift-foundation",
+    version = "6.3.2.isomer.1",
+)
+
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "rules_cc", version = "0.2.18")
+bazel_dep(name = "rules_swift", version = "3.6.1")
+
+# FoundationMacros (#Predicate, #Expression, the bundle macros) is a compiler
+# plugin built for the host from swift-syntax.
+bazel_dep(name = "swift-syntax", version = "603.0.2")
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+# swift-collections at the version swift-foundation's Package.swift pins
+# (exact: 1.1.6). Compiled as ONE module, `_FoundationCollections`, as the
+# toolchain's CMake build does (COLLECTIONS_FOUNDATION_TOOLCHAIN_MODULE): an app
+# that depends on swift-collections itself (SwiftNIO does) then never sees two
+# `DequeModule`s.
+http_archive(
+    name = "swift_foundation_collections",
+    build_file = "//bazel:swift_collections.BUILD",
+    sha256 = "2f558b33b6eba5b0c263110d7cb1a11b59d63059e845dc1984c65359e36f29da",
+    strip_prefix = "swift-collections-1.1.6",
+    urls = ["https://github.com/apple/swift-collections/archive/refs/tags/1.1.6.tar.gz"],
+)
