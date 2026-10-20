@@ -1,0 +1,13 @@
+name: Check
+# Every pull request and every commit on main: each version's archive is
+# what its entry says.
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/check_registry.py
