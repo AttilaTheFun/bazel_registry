@@ -3,11 +3,14 @@
 
 For each modules/<name>/<version>:
 - source.json names an archive whose sha256 matches its `integrity`;
-- MODULE.bazel is the archive's own (at `strip_prefix`), unless the entry
-  patches it, and names the module and this version;
+- MODULE.bazel is the archive's own (at `strip_prefix`) and names the module
+  and this version; for an entry with patches (a fork's), each patch in
+  patches/ matches its hash in source.json, they apply to the archive in
+  order, and MODULE.bazel is the patched archive's;
 - the module's metadata.json lists the version.
 
-Exits 1 when anything does not match, saying what. Standard library only.
+Exits 1 when anything does not match, saying what. Standard library only,
+and the system's `patch` for patched entries.
 """
 
 import base64
@@ -15,8 +18,10 @@ import hashlib
 import io
 import json
 import re
+import subprocess
 import sys
 import tarfile
+import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -79,13 +84,47 @@ def check(module_dir, version_dir):
     name, version = module_version(entry)
     if name != module_dir.name or version != version_dir.name:
         problem(where, f"MODULE.bazel names {name}@{version}")
+    prefix = source.get("strip_prefix", "")
     if not source.get("patches"):
-        prefix = source.get("strip_prefix", "")
         own = member(data, url, f"{prefix}/MODULE.bazel" if prefix else "MODULE.bazel")
         if own is None:
             problem(where, "the archive has no MODULE.bazel")
         elif own.decode() != entry:
             problem(where, "MODULE.bazel differs from the archive's")
+        return
+    patched = patched_module(where, version_dir, source, data, prefix)
+    if patched is not None and patched != entry:
+        problem(where, "MODULE.bazel differs from the patched archive's")
+
+
+def patched_module(where, version_dir, source, data, prefix):
+    """The archive's MODULE.bazel once the entry's patches are applied, in
+    source.json's order, or None (with a problem said) when one is missing,
+    has another hash, or doesn't apply."""
+    with tempfile.TemporaryDirectory(prefix="check-registry-") as work:
+        with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+            archive.extractall(work, filter="data")
+        tree = Path(work) / prefix if prefix else Path(work)
+        for name, integrity in source["patches"].items():
+            patch = version_dir / "patches" / name
+            if not patch.exists():
+                problem(where, f"patches/{name} is listed but missing")
+                return None
+            body = patch.read_bytes()
+            digest = "sha256-" + base64.b64encode(hashlib.sha256(body).digest()).decode()
+            if digest != integrity:
+                problem(where, f"patches/{name}'s hash is {digest}, not {integrity}")
+                return None
+            applied = subprocess.run(["patch", f"-p{source.get('patch_strip', 0)}", "--forward", "--batch", "--silent"],
+                                     input=body, cwd=tree, capture_output=True)
+            if applied.returncode != 0:
+                problem(where, f"patches/{name} doesn't apply: {(applied.stdout + applied.stderr).decode().strip()}")
+                return None
+        found = tree / "MODULE.bazel"
+        if not found.exists():
+            problem(where, "the patched archive has no MODULE.bazel")
+            return None
+        return found.read_text()
 
 
 def main():

@@ -1,0 +1,9 @@
+{
+    "url": "https://github.com/AttilaTheFun/swift-foundation/archive/b04a54975a53d4447ea6ccad0cf6c68e4e2685e0.tar.gz",
+    "integrity": "sha256-ku4ht7rOdqp1UWmw8PUs90uFmbzwr5Btw3gOhbSj604=",
+    "strip_prefix": "swift-foundation-b04a54975a53d4447ea6ccad0cf6c68e4e2685e0",
+    "patches": {
+        "module_dot_bazel.patch": "sha256-ZCtQJ2rVCw+qK4IqJVykyLv51dvYbby0aHVgvTg3ib8="
+    },
+    "patch_strip": 1
+}

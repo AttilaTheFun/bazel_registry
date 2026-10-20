@@ -1,0 +1,11 @@
+{
+    "url": "https://github.com/AttilaTheFun/rules_swift/archive/308114d6137984df946333776d93a08fc21df66a.tar.gz",
+    "integrity": "sha256-NOILvxcZnJUFqKhLlEm0aujZC5sczoLjiLOnKielh54=",
+    "strip_prefix": "rules_swift-308114d6137984df946333776d93a08fc21df66a",
+    "patches": {
+        "rules_swift_wasm_threads_beside.patch": "sha256-WUJPM+Z7DXIzd/AscobKxr1A16hpGR0wNmhjTUKcgYs=",
+        "rules_swift_wasm_clang_resource_dir.patch": "sha256-yUmnUoT4Oh7tkWyPB1xz3cb6Ar5N8NeePIk1Yz9dnS4=",
+        "module_dot_bazel.patch": "sha256-cMT62cXWO4L4vEl9KXeCWrrhauwle5cmIC2qjaCSY8E="
+    },
+    "patch_strip": 1
+}
