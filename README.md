@@ -31,7 +31,21 @@ modules/<name>/<version>/source.json   its tag archive: url, integrity, strip_pr
 ## Adding a version
 
 A version is added only for a released tag, by a pull request, which the
-code owner approves. CI (`tools/check_registry.py`) checks every version:
+code owner approves:
+
+```
+tools/add_version.py <owner/repo> <tag>      # e.g. AttilaTheFun/isomer v0.36.0
+python3 tools/check_registry.py
+```
+
+`add_version.py` fetches the tag's archive and writes the version's
+`source.json` and `MODULE.bazel` and its line in `metadata.json`. The tag's
+own `module()` must name the release's version (`v0.36.0` is `0.36.0`); a
+fork's tag carries its upstream version with a suffix that sorts above it
+(`3.6.1.isomer.1`), as the BCR's patched versions do (`.bcr.1`). A version,
+once added, is never replaced.
+
+CI (`tools/check_registry.py`) checks every version:
 - its archive's hash matches `integrity`;
 - its MODULE.bazel is the archive's own, naming the same version;
 - `metadata.json` lists it.
