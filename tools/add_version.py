@@ -3,6 +3,7 @@
 
     tools/add_version.py <owner/repo> <tag> [--module NAME] [--version X.Y.Z]
     tools/add_version.py <owner/repo> <tag or commit> --fork --version V [--patch FILE]...
+    tools/add_version.py <owner/repo> v0.38.N --stamped
 
 Fetches GitHub's archive of the tag and writes modules/<name>/<version>/:
 - source.json: the archive's url, its sha256 `integrity` and the
@@ -15,6 +16,13 @@ A release of our own: the module's name and version are the tag's
 MODULE.bazel's own. Its `module()` must name the release's version (a tag
 v0.36.0 is version 0.36.0, the leading "v" dropped), or nothing is written.
 --module and --version only say what to expect.
+
+A release stamped by CI (--stamped): from 0.38 a version is
+MAJOR.MINOR.BUILD, and a repository commits MAJOR.MINOR.0 while CI stamps each
+build's own (0.38.N). The tag v0.38.N's MODULE.bazel then says 0.38.0, and
+the entry carries one patch (module_dot_bazel.patch) setting module()'s
+version to the tag's, as a fork's entry does. Only that difference is
+accepted: the tag's MAJOR.MINOR with BUILD 0.
 
 A fork (--fork): a module this account carries changes to until upstream
 takes them, from a commit or tag of the fork. --version names the entry, an
@@ -100,10 +108,14 @@ def main():
     parser.add_argument("--module", help="the module name to expect (default: the archive's MODULE.bazel's)")
     parser.add_argument("--version", help="the version to expect; with --fork, the entry's version")
     parser.add_argument("--fork", action="store_true", help="a fork's commit or tag: patched, its version set by --version")
+    parser.add_argument("--stamped", action="store_true",
+                        help="a release whose MODULE.bazel says MAJOR.MINOR.0 (CI stamps the build): the entry sets the tag's version")
     parser.add_argument("--patch", action="append", default=[], help="with --fork: a patch to apply (strip 1), in order")
     parser.add_argument("--drop-includes", action="store_true",
                         help="with --fork: remove MODULE.bazel's include() lines (their files must be dev-only)")
     args = parser.parse_args()
+    if args.stamped and args.fork:
+        sys.exit("add_version.py: --stamped is for a release of our own, --fork for a fork's commit")
     if (args.patch or args.drop_includes) and not args.fork:
         sys.exit("add_version.py: --patch and --drop-includes are for a fork's entry (--fork)")
     if args.fork and not args.version:
@@ -161,12 +173,21 @@ def main():
                 patches.append((MODULE_PATCH, diff.encode()))
             module_file = after.encode()
         else:
-            version = declared
             expected = args.version or (args.ref[1:] if args.ref.startswith("v") else args.ref)
-            if declared != expected:
-                sys.exit(f"add_version.py: {args.ref}'s MODULE.bazel says version {declared}, not {expected}: "
-                         "a release's module() names its own version")
+            version = expected
             module_file = original
+            if declared != expected:
+                line = ".".join(expected.split(".")[:2] + ["0"])
+                if not (args.stamped and declared == line):
+                    sys.exit(f"add_version.py: {args.ref}'s MODULE.bazel says version {declared}, not {expected}: "
+                             "a release's module() names its own version"
+                             + ("" if args.stamped else f" (or, stamped by CI, {line}: --stamped)"))
+                before = original.decode()
+                after = with_version(before, version)
+                diff = "".join(difflib.unified_diff(before.splitlines(keepends=True), after.splitlines(keepends=True),
+                                                    "a/MODULE.bazel", "b/MODULE.bazel"))
+                patches.append((MODULE_PATCH, diff.encode()))
+                module_file = after.encode()
 
     if len({file for file, _ in patches}) != len(patches):
         sys.exit("add_version.py: two patches share a file name")
