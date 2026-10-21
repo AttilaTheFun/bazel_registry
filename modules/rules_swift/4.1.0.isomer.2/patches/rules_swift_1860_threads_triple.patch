@@ -1,0 +1,63 @@
+From af1e6402fad0d0f52e84503b10731e658305fc96 Mon Sep 17 00:00:00 2001
+From: Logan Shire <logan.shire@gmail.com>
+Date: Wed, 15 Jul 2026 23:08:49 -0400
+Subject: [PATCH 2/3] wasm_sdk: target the -threads triple in the generated
+ toolchains
+
+The threads variant injected the atomics/shared-memory build flags but the
+generated cc + Swift toolchains still compiled with
+`--target=wasm32-unknown-wasip1` (the single-threaded triple). The swiftwasm
+threads SDK ships its swiftmodules under `wasm32-unknown-wasip1-threads`, so
+swiftc could not resolve `Swift`/`_Concurrency` for the single-threaded triple
+("could not find module Swift for target wasm32-unknown-wasip1; found:
+wasm32-unknown-wasip1-threads").
+
+Thread the already-computed `triple` through a `{target_triple}` substitution so
+both the clang `--target` and the `CC_TARGET_TRIPLE` make variable (which the
+Swift toolchain parses into swiftc `-target`) use the correct triple. Byte-for-
+byte identical for the default single-threaded path.
+
+Caught by locally building a threaded wasm binary against a swiftwasm threads
+SDK bundle; the existing CI matrix does not exercise the threads path.
+---
+ swift/internal/extensions/swift_sdks.bzl | 1 +
+ swift/internal/extensions/wasmsdk.BUILD  | 4 ++--
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/swift/internal/extensions/swift_sdks.bzl b/swift/internal/extensions/swift_sdks.bzl
+index 070d2b4f..dfded83e 100644
+--- a/swift/internal/extensions/swift_sdks.bzl
++++ b/swift/internal/extensions/swift_sdks.bzl
+@@ -241,6 +241,7 @@ def _swift_wasm_sdk_impl(repository_ctx):
+         "{bundle_dir}": bundle_dir,
+         "{sdk_dir}": sdk_dir,
+         "{swift_version}": repository_ctx.attr.swift_version,
++        "{target_triple}": triple,
+         "{toolchain_repo}": repository_ctx.attr.toolchain_repo,
+     }
+     substitutions.update(_wasm_thread_substitutions(threads))
+diff --git a/swift/internal/extensions/wasmsdk.BUILD b/swift/internal/extensions/wasmsdk.BUILD
+index 9c663118..63bd6268 100644
+--- a/swift/internal/extensions/wasmsdk.BUILD
++++ b/swift/internal/extensions/wasmsdk.BUILD
+@@ -105,7 +105,7 @@ cc_args(
+         "@rules_cc//cc/toolchains/actions:link_actions",
+     ],
+     args = [
+-        "--target=wasm32-unknown-wasip1",
++        "--target={target_triple}",
+         "--sysroot=" + _WASI_SDK,{cc_thread_compile_args}
+     ],
+ )
+@@ -126,7 +126,7 @@ cc_args(
+ 
+ cc_make_variable(
+     name = "cc_target_triple_wasm32",
+-    value = "wasm32-unknown-wasip1",
++    value = "{target_triple}",
+     variable_name = "CC_TARGET_TRIPLE",
+ )
+ 
+-- 
+2.54.0 (Apple Git-157)
+

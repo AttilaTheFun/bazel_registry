@@ -6,7 +6,8 @@
     ],
     "versions": [
         "3.6.1.isomer.1",
-        "4.1.0.isomer.1"
+        "4.1.0.isomer.1",
+        "4.1.0.isomer.2"
     ],
     "yanked_versions": {}
 }

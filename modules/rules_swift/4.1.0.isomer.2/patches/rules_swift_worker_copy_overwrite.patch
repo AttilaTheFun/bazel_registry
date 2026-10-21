@@ -1,0 +1,16 @@
+--- a/tools/worker/work_processor.cc
++++ b/tools/worker/work_processor.cc
+@@ -38,6 +38,13 @@
+ 
+ bool copy_file(const std::filesystem::path& from,
+                const std::filesystem::path& to, std::error_code& ec) noexcept {
++  // Replace the destination: a declared output may already hold the copy made
++  // from incremental storage before compiling, and neither a clone nor
++  // std::filesystem::copy_file writes over an existing file.
++  std::filesystem::remove(LongPath(to), ec);
++  if (ec) {
++    return false;
++  }
+ #if defined(__APPLE__)
+   if (copyfile(from.string().c_str(), to.string().c_str(), nullptr,
+                COPYFILE_ALL | COPYFILE_CLONE) < 0) {
