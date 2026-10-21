@@ -43,6 +43,16 @@ python3 tools/check_registry.py
 own `module()` must name the release's version (`v0.36.0` is `0.36.0`). A
 version, once added, is never replaced.
 
+From 0.38 a version is MAJOR.MINOR.BUILD: a repository commits
+MAJOR.MINOR.0 and CI stamps each build's own (0.38.N), so the tag v0.38.N's
+`module()` says 0.38.0. Such a release is added with `--stamped`: the entry
+carries one patch (`module_dot_bazel.patch`) setting `module()` to the tag's
+version, and no other difference from the tag is accepted:
+
+```
+tools/add_version.py AttilaTheFun/isomer v0.38.4 --stamped
+```
+
 A fork this account carries changes to until upstream takes them is added
 from a commit (or tag) of the fork, as a patched version that sorts above
 upstream's (`3.6.1.isomer.1` above `3.6.1`), as the BCR's patched versions
