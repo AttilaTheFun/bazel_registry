@@ -1,0 +1,11 @@
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -27,7 +27,7 @@
+ 
+ module(
+     name = "isomer",
+-    version = "0.38.0",
++    version = "0.38.15",
+ )
+ 
+ bazel_dep(name = "bazel_skylib", version = "1.9.0")
