@@ -1,0 +1,10 @@
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -1,6 +1,6 @@
+ module(
+     name = "rules_applecross",
+-    version = "0.0.3",
++    version = "0.0.3.cc07dde",
+ )
+ 
+ bazel_dep(name = "bazel_features", version = "1.51.0")

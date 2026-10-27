@@ -1,0 +1,11 @@
+{
+    "homepage": "https://github.com/apple-cross-toolchain/rules_applecross",
+    "maintainers": [],
+    "repository": [
+        "github:apple-cross-toolchain/rules_applecross"
+    ],
+    "versions": [
+        "0.0.3.cc07dde"
+    ],
+    "yanked_versions": {}
+}
