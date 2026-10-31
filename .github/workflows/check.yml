@@ -1,13 +1,27 @@
 name: Check
 # Every pull request and every commit on main: each version's archive is
 # what its entry says.
+#
+# On the registry's self-hosted runner (label bazel_registry-ci: a Mac that
+# runs OS Server, as a user of its own), which leases a container from that
+# OS Server for the check (tools/ci/check.sh: check_registry.py needs
+# Python, which the runner's Mac doesn't lend).
 on:
   pull_request:
   push:
     branches: [main]
+permissions:
+  contents: read
+# Whom the job's lease is for: with the runner's `ci` key, `<job>-<run>@ci`.
+env:
+  OSS_CLIENT_ID: ${{ github.job }}-${{ github.run_id }}
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # A self-hosted runner never runs a fork's code.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, bazel_registry-ci]
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - run: python3 tools/check_registry.py
+      # exec: the runner's cancel reaches oss, which releases the container.
+      - run: exec tools/ci/check.sh
