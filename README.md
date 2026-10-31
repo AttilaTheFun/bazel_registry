@@ -69,7 +69,8 @@ version; `--drop-includes` also removes `include()` lines, which only a root
 module may have (for included files that declare only the fork's own
 development dependencies).
 
-CI (`tools/check_registry.py`) checks every version:
+CI (`tools/check_registry.py`, on the self-hosted runner in a container
+leased from its OS Server: `tools/ci/check.sh`) checks every version:
 - its archive's hash matches `integrity`;
 - its MODULE.bazel is the archive's own, naming the same version (for a
   fork's entry: its patches match their hashes, apply in order, and give
