@@ -12,8 +12,11 @@ on:
     branches: [main]
 # A pull request's newer push cancels its older run, so only the head's
 # check runs; main's run to the end.
+# Every run but a pull request's is a group of its own (GitHub keeps one
+# pending run a group and cancels the rest); a pull request's newer push
+# cancels its older run.
 concurrency:
-  group: check-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.event_name == 'pull_request' && format('check-pr-{0}', github.event.pull_request.number) || format('check-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
