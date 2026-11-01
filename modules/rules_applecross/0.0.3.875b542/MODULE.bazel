@@ -1,0 +1,126 @@
+module(
+    name = "rules_applecross",
+    version = "0.0.3.875b542",
+)
+
+bazel_dep(name = "bazel_features", version = "1.51.0")
+bazel_dep(name = "apple_support", version = "2.10.1")
+single_version_override(
+    module_name = "apple_support",
+    patch_strip = 1,
+    patches = [
+        "//patches:apple_support_bazel8_xcode_properties.patch",
+    ],
+    version = "2.10.1",
+)
+
+apple_support_toolchain_env = use_repo_rule("@apple_support//toolchain:toolchain_env.bzl", "toolchain_env")
+
+apple_support_toolchain_env(name = "apple_support_toolchain_env")
+
+bazel_dep(name = "rules_apple", version = "5.3.1", repo_name = "build_bazel_rules_apple")
+single_version_override(
+    module_name = "rules_apple",
+    patch_strip = 1,
+    patches = [
+        "//patches:rules_apple_execution_platform.patch",
+        "//patches:rules_apple_bundletool_path.patch",
+        "//patches:rules_apple_no_absolute_tool_paths.patch",
+        "//patches:rules_apple_codesign_inputs_sdk_tools.patch",
+        "//patches:rules_apple_alticonstool_missing_icons.patch",
+        "//patches:rules_apple_xctoolrunner_sorted_listdir.patch",
+        "//patches:rules_apple_arm64_default.patch",
+        "//patches:rules_apple_codesign_smartcards_off_mac.patch",
+        "//patches:rules_apple_app_intents_off_mac.patch",
+        "//patches:rules_apple_coreml_off_mac.patch",
+    ],
+    version = "5.3.1",
+)
+
+bazel_dep(name = "rules_swift", version = "4.2.2")
+bazel_dep(name = "rules_cc", version = "0.2.26")
+bazel_dep(name = "rules_python", version = "1.8.0")
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "llvm", version = "0.8.25")
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "xctestrunner", version = "0.0.1", dev_dependency = True)
+
+bazel_dep(name = "fmt", version = "12.1.0", dev_dependency = True)
+bazel_dep(name = "libpng", version = "1.6.54", dev_dependency = True)
+bazel_dep(name = "sqlite3", version = "3.53.2", dev_dependency = True)
+bazel_dep(name = "zlib", version = "1.3.2", dev_dependency = True)
+
+git_override(
+    module_name = "xctestrunner",
+    commit = "5bcb17328a6fe51c9800075362414d46f1f824bf",
+    remote = "https://github.com/apple-cross-toolchain/xctestrunner-bash.git",
+)
+
+register_toolchains(
+    "//testing:ios_test_toolchain",
+    dev_dependency = True,
+)
+
+register_toolchains("//testing:default_test_toolchain")
+
+# Marks the execution platforms allowed to build Apple products (link, bundle,
+# resources, signing, tests). Registered as a dev dependency so that a module
+# depending on this one chooses for itself which of the two it wants; see the
+# README. Here both are registered and the Linux one withdraws itself under
+# --//toolchain:apple_bundling=macos.
+register_toolchains(
+    "//toolchain:apple_bundling_on_macos",
+    "//toolchain:apple_bundling_on_linux",
+    dev_dependency = True,
+)
+
+register_toolchains(
+    "@llvm//toolchain:linux_aarch64_to_linux_aarch64",
+    "@llvm//toolchain:linux_x86_64_to_linux_x86_64",
+    dev_dependency = True,
+)
+
+llvm_toolchain_minimal = use_extension("@llvm//extensions:llvm_toolchain_minimal.bzl", "llvm_toolchain_minimal")
+use_repo(
+    llvm_toolchain_minimal,
+    "llvm-toolchain-minimal-darwin-amd64",
+    "llvm-toolchain-minimal-windows-amd64",
+    "llvm-toolchain-minimal-windows-arm64",
+    llvm_prebuilt = "llvm-toolchain-minimal-linux-amd64",
+    llvm_prebuilt_aarch64 = "llvm-toolchain-minimal-linux-arm64",
+    # For the macOS execution platform's toolchains.
+    llvm_prebuilt_macos = "llvm-toolchain-minimal-darwin-arm64",
+)
+
+apple_cross_toolchain = use_extension(
+    "//toolchain:extensions.bzl",
+    "apple_cross_toolchain",
+)
+
+# Must match the Swift that built the Apple SDKs: Xcode 27.2's SDKs were built
+# by Swift 6.4.2 (toolchain/xcode_versions.bzl).
+apple_cross_toolchain.swift(
+    name = "applecross_swift",
+    platform_sha256 = {
+        "ubuntu24.04": "2e9ebec040ad459dd89a6d093a02d8314939135104850fae4d5c0f174fb3ba8c",
+        "ubuntu24.04-aarch64": "307772afcc0b9501faa4797eb4197076facf5768593a0d8d2b83615c95b0040e",
+        # Only fetched for Swift compiles on a macOS execution platform.
+        "xcode": "0a7d8489900d21dbf5f0187cb570e646a4c0226d0ddef2cbde8c7f54dfe79736",
+    },
+    swift_version = "6.4.2",
+)
+
+apple_cross_toolchain.configure(
+    name = "apple_cross_toolchain",
+    apple_sdk_path = "apple-sdks.tar.zst",
+    # macOS hosts read their own Xcode; other hosts need the archive above.
+    local_xcode = True,
+    swift_tools = {
+        "aarch64": "@applecross_swift_ubuntu24.04-aarch64//:tools",
+        "x86_64": "@applecross_swift_ubuntu24.04//:tools",
+    },
+    swift_tools_macos = "@applecross_swift_xcode//:tools",
+)
+use_repo(apple_cross_toolchain, "apple_cross_toolchain")
+
+register_toolchains("@apple_cross_toolchain//:all", dev_dependency = True)
