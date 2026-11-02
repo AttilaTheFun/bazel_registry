@@ -1,0 +1,9 @@
+{
+    "url": "https://github.com/apple-cross-toolchain/rules_applecross/archive/f223f0f8d3383b6867afdb1f8bc8861a4c84056c.tar.gz",
+    "integrity": "sha256-P1zXpbZmbXbkWJyNxIA25OTxK6qbn23Ut+YvN/4F1/s=",
+    "strip_prefix": "rules_applecross-f223f0f8d3383b6867afdb1f8bc8861a4c84056c",
+    "patches": {
+        "module_dot_bazel.patch": "sha256-PKI+YkbvJGknsUiSnOwsevBQtlXRItROuMCyTJXgwY8="
+    },
+    "patch_strip": 1
+}
