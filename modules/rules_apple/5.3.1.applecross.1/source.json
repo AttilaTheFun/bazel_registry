@@ -1,0 +1,19 @@
+{
+    "url": "https://github.com/bazelbuild/rules_apple/archive/refs/tags/5.3.1.tar.gz",
+    "integrity": "sha256-QXbnRAWbqN2g2GCYnqEc5FFBlw/w17OMZm5oM8nB70w=",
+    "strip_prefix": "rules_apple-5.3.1",
+    "patches": {
+        "rules_apple_execution_platform.patch": "sha256-Y5CgUSnAqRBgcsbF03wW2Kn3j81XnwiZDb0uAWwyx7w=",
+        "rules_apple_bundletool_path.patch": "sha256-mUkOG9R2FvP2vkAWZ4ZeUE7SlxXMn3ALD1hDyvieLBk=",
+        "rules_apple_no_absolute_tool_paths.patch": "sha256-uvnXlQkLUrD7I4Haw9g8RXhs6Y5kHC1uggunPMFTBY8=",
+        "rules_apple_codesign_inputs_sdk_tools.patch": "sha256-68GsgljCqQaTj2BiHjuUTT7QHMhbpnjUcG9T0Wp7ZFQ=",
+        "rules_apple_alticonstool_missing_icons.patch": "sha256-Kf0P4Iv15+jBIt6pkm/4UFf/mD7OK+Rd+hViiChEorw=",
+        "rules_apple_xctoolrunner_sorted_listdir.patch": "sha256-6o7zh+cjOKvj8/zxSvxwuPCZe3tv+fa3hZkw4roNVao=",
+        "rules_apple_arm64_default.patch": "sha256-esYHpFiUlDJXmw6WflMZnWL7s3bTDK1Z3iGx1Ha5OQE=",
+        "rules_apple_codesign_smartcards_off_mac.patch": "sha256-eTVp/baCzq6tRiYsM1yOpYshzehSKt2gjCMqB1hbows=",
+        "rules_apple_app_intents_off_mac.patch": "sha256-VZrvThX4YbLrPANEBwUfdFI32dM8R7TtrEg3zFxuIHE=",
+        "rules_apple_coreml_off_mac.patch": "sha256-EZRvG27IwSSYDhhUJh9BJSnzwqs4o7hY7nNnWv9owHI=",
+        "module_dot_bazel.patch": "sha256-rGbz4cc7zku/62P4o53wE3HfBiBKxpmGtY5Y9TOujXw="
+    },
+    "patch_strip": 1
+}

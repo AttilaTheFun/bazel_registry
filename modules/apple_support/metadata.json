@@ -1,0 +1,11 @@
+{
+    "homepage": "https://github.com/bazelbuild/apple_support",
+    "maintainers": [],
+    "repository": [
+        "github:bazelbuild/apple_support"
+    ],
+    "versions": [
+        "2.10.1.applecross.1"
+    ],
+    "yanked_versions": {}
+}
