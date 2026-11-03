@@ -1,0 +1,11 @@
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -15,7 +15,7 @@
+ # Declared so the execution platform patch can name the toolchain type that
+ # decides where Apple product actions run. rules_applecross is the module
+ # applying that patch, so this resolves back to it.
+-bazel_dep(name = "rules_applecross", version = "0.0.3")
++bazel_dep(name = "rules_applecross", version = "0.0.3.a2b0558")
+ bazel_dep(name = "rules_cc", version = "0.2.17")
+ bazel_dep(
+     name = "rules_swift",
