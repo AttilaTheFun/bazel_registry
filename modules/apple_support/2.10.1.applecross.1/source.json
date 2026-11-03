@@ -1,0 +1,10 @@
+{
+    "url": "https://github.com/bazelbuild/apple_support/archive/refs/tags/2.10.1.tar.gz",
+    "integrity": "sha256-nFvd5i+oMMBRJCQWw2af9DwWNRRdEf31ltVEJ+amHSg=",
+    "strip_prefix": "apple_support-2.10.1",
+    "patches": {
+        "apple_support_bazel8_xcode_properties.patch": "sha256-ZImO+gB+VENNZfq2kw7wcAgcZrbI1gTYazGq4/o43gU=",
+        "module_dot_bazel.patch": "sha256-A8aMu71U9QcLlyz0CcCobNZWC2qPZKm+7fKr14xM5Ws="
+    },
+    "patch_strip": 1
+}

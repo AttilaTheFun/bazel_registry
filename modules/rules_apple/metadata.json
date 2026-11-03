@@ -1,0 +1,11 @@
+{
+    "homepage": "https://github.com/bazelbuild/rules_apple",
+    "maintainers": [],
+    "repository": [
+        "github:bazelbuild/rules_apple"
+    ],
+    "versions": [
+        "5.3.1.applecross.1"
+    ],
+    "yanked_versions": {}
+}
