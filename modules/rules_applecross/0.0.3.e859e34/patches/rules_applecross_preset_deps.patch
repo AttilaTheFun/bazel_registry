@@ -1,0 +1,20 @@
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -4,7 +4,7 @@
+ )
+ 
+ bazel_dep(name = "bazel_features", version = "1.51.0")
+-bazel_dep(name = "apple_support", version = "2.10.1")
++bazel_dep(name = "apple_support", version = "2.10.1.applecross.1")
+ single_version_override(
+     module_name = "apple_support",
+     patch_strip = 1,
+@@ -18,7 +18,7 @@
+ 
+ apple_support_toolchain_env(name = "apple_support_toolchain_env")
+ 
+-bazel_dep(name = "rules_apple", version = "5.3.1", repo_name = "build_bazel_rules_apple")
++bazel_dep(name = "rules_apple", version = "5.3.1.applecross.1", repo_name = "build_bazel_rules_apple")
+ single_version_override(
+     module_name = "rules_apple",
+     patch_strip = 1,
