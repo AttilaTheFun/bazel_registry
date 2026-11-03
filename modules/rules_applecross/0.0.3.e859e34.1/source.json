@@ -1,0 +1,10 @@
+{
+    "url": "https://github.com/apple-cross-toolchain/rules_applecross/archive/e859e348ff4dee296db904f4eb8ba7a145519b57.tar.gz",
+    "integrity": "sha256-oF4teu19Je4ZfGhwOPytym1lLleJWUvmcV++HCgPnjg=",
+    "strip_prefix": "rules_applecross-e859e348ff4dee296db904f4eb8ba7a145519b57",
+    "patches": {
+        "rules_applecross_preset_deps.2.patch": "sha256-2S371IDkLWb+zRMuiDhPLq5Ho5erCoxamJJdfXoHcN4=",
+        "module_dot_bazel.patch": "sha256-J/PTLV5IPnXNhPYlWKUmEgOaO9QyIu796B1B/0b5OLc="
+    },
+    "patch_strip": 1
+}

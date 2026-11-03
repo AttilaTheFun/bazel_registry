@@ -5,7 +5,8 @@
         "github:bazelbuild/rules_apple"
     ],
     "versions": [
-        "5.3.1.applecross.1"
+        "5.3.1.applecross.1",
+        "5.3.1.applecross.2"
     ],
     "yanked_versions": {}
 }
