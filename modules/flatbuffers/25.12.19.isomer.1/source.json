@@ -1,0 +1,12 @@
+{
+    "url": "https://github.com/google/flatbuffers/archive/refs/tags/v25.12.19.tar.gz",
+    "integrity": "sha256-+BwxYrEEb+i4S5oNvdOD4k/bz4hYO5y2Ao+Q0E2QaWo=",
+    "strip_prefix": "flatbuffers-25.12.19",
+    "patches": {
+        "flatbuffers_dev_dependencies.patch": "sha256-KPfAInL3ECr6Yw/qcpn1UF393vwt60AhjOz1B8jETms=",
+        "flatbuffers_foundation_wasi.patch": "sha256-ojydO4Oo48XtVpj+9UusQOKV90FVedjCaUyjxjUfMJc=",
+        "flatbuffers_swift_vectors.patch": "sha256-kgA2iHFIDHjZPkFNiUP4wjRXCL3zg7aufFEiJim97uw=",
+        "module_dot_bazel.patch": "sha256-xDLPBicmBfMJ4hQ7EMsjUAqb1egNuK+9zakCN+vaoGw="
+    },
+    "patch_strip": 1
+}
