@@ -138,14 +138,22 @@ def main():
             prefix = tops.pop()
             archive.extractall(work, filter="data")
         tree = Path(work) / prefix
-        if not (tree / "MODULE.bazel").exists():
-            sys.exit(f"add_version.py: {args.ref} has no MODULE.bazel at its root")
-        original = (tree / "MODULE.bazel").read_bytes()
-        name, declared = module_version(original.decode())
-        if not name:
-            sys.exit(f"add_version.py: {args.ref}'s MODULE.bazel declares no module() name")
-        if args.module and name != args.module:
-            sys.exit(f"add_version.py: {args.ref}'s MODULE.bazel names module {name}, not {args.module}")
+
+        def read_module(what):
+            if not (tree / "MODULE.bazel").exists():
+                sys.exit(f"add_version.py: {what} has no MODULE.bazel at its root")
+            text = (tree / "MODULE.bazel").read_bytes()
+            name, declared = module_version(text.decode())
+            if not name:
+                sys.exit(f"add_version.py: {what}'s MODULE.bazel declares no module() name")
+            if args.module and name != args.module:
+                sys.exit(f"add_version.py: {what}'s MODULE.bazel names module {name}, not {args.module}")
+            return text, name, declared
+
+        # A fork's patches may add the MODULE.bazel (a Bazel build of a
+        # repository that has none upstream): read it once they are applied.
+        if not args.fork:
+            original, name, declared = read_module(args.ref)
 
         patches = []  # (file name, bytes), in the order they apply
         if args.fork:
@@ -158,6 +166,7 @@ def main():
                     sys.exit(f"add_version.py: {path} doesn't apply to {args.ref}:\n"
                              + applied.stdout.decode() + applied.stderr.decode())
                 patches.append((Path(path).name, body))
+            _, name, _ = read_module(f"{args.ref} with its patches")
             before = (tree / "MODULE.bazel").read_text()
             after = with_version(before, version)
             includes = re.findall(r'^include\(.*\)[ \t]*\n', after, re.M)
