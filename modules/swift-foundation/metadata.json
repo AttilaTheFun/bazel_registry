@@ -5,7 +5,8 @@
         "github:AttilaTheFun/swift-foundation"
     ],
     "versions": [
-        "6.3.2.isomer.1"
+        "6.3.2.isomer.1",
+        "6.3.2.isomer.2"
     ],
     "yanked_versions": {}
 }

@@ -1,0 +1,11 @@
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -10,7 +10,7 @@
+ # the platform; nothing here does.
+ module(
+     name = "swift-foundation",
+-    version = "6.3.2",
++    version = "6.3.2.isomer.2",
+ )
+ 
+ bazel_dep(name = "bazel_skylib", version = "1.9.0")

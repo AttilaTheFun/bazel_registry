@@ -1,0 +1,14 @@
+{
+    "url": "https://github.com/swiftlang/swift-foundation/archive/refs/tags/swift-6.3.2-RELEASE.tar.gz",
+    "integrity": "sha256-2HFVvNObA+ia6E/Y19fSfI5T9LQQ7S3B7RZ7t7iaeAo=",
+    "strip_prefix": "swift-foundation-swift-6.3.2-RELEASE",
+    "patches": {
+        "bazel_build.patch": "sha256-OwcyhvobunSZ2IjYzXWIjxVHp1x5bkX9ezRD2n3FwLQ=",
+        "create_directory_root.patch": "sha256-EcIwfB4g+2GnyI8/WemWzqhJKLNHy2Ku/XNoIR/hw2o=",
+        "android_fts.patch": "sha256-xuzxSuo0hhVeVQ6Nl4J4GCtgSkHVLT9hB1XmmQLJB5A=",
+        "apple_interface.patch": "sha256-/cMaDlz44qNHJmNMrCp2HV935xoiZlD0guyHpEb5dlc=",
+        "package_helpers.patch": "sha256-9Bc9wVeUpq0/jHwOs8RyvD/xfLNcMEkMdb1w1bB7ctA=",
+        "module_dot_bazel.patch": "sha256-AY3GRkE8WhMrho3uRvN+usRBa4OVicr+SHfTyeReeTs="
+    },
+    "patch_strip": 1
+}

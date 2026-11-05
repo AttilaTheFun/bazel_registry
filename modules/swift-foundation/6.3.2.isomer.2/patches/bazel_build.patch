@@ -1,0 +1,410 @@
+diff --git a/BUILD.bazel b/BUILD.bazel
+new file mode 100644
+index 00000000..785f9b6d
+--- /dev/null
++++ b/BUILD.bazel
+@@ -0,0 +1,204 @@
++# swift-foundation's libraries as Bazel targets (see
++# MODULE.bazel). The flags follow upstream's CMake build (CMakeLists.txt and
++# Sources/*/CMakeLists.txt), which is what the Swift toolchain ships.
++
++load("@rules_cc//cc:defs.bzl", "cc_library")
++load("@rules_swift//swift:swift.bzl", "swift_interop_hint", "swift_library")
++load("@rules_swift//swift:swift_compiler_plugin.bzl", "swift_compiler_plugin")
++
++package(default_visibility = ["//visibility:public"])
++
++exports_files(["LICENSE.md", "NOTICE.txt"])
++
++config_setting(
++    name = "wasi",
++    constraint_values = ["@platforms//os:wasi"],
++)
++
++config_setting(
++    name = "linux",
++    constraint_values = ["@platforms//os:linux"],
++)
++
++config_setting(
++    name = "android",
++    constraint_values = ["@platforms//os:android"],
++)
++
++# The availability macros upstream defines for every Foundation release
++# (CMakeLists.txt: _SwiftFoundation_availability_macros).
++_AVAILABILITY = [
++    flag
++    for version in [
++        "6.0.2",
++        "6.1",
++        "6.2",
++        "6.3",
++    ]
++    for flag in [
++        "-enable-experimental-feature",
++        "AvailabilityMacro=FoundationPreview %s:macOS 15, iOS 18, tvOS 18, watchOS 11" % version,
++    ]
++]
++
++_FEATURES = [
++    "-enable-experimental-feature",
++    "StrictConcurrency",
++    "-enable-upcoming-feature",
++    "InferSendableFromCaptures",
++    "-enable-upcoming-feature",
++    "MemberImportVisibility",
++    "-enable-experimental-feature",
++    "AccessLevelOnImport",
++]
++
++# wasi-libc's emulated getpid, signals and mmap (upstream's
++# _SwiftFoundation_wasi_libc_flags); the libraries are linked below.
++_WASI_SWIFT = [
++    "-Xcc",
++    "-D_WASI_EMULATED_GETPID",
++    "-Xcc",
++    "-D_WASI_EMULATED_SIGNAL",
++    "-Xcc",
++    "-D_WASI_EMULATED_MMAN",
++]
++
++_WASI_LINKOPTS = [
++    "-lwasi-emulated-getpid",
++    "-lwasi-emulated-signal",
++    "-lwasi-emulated-mman",
++]
++
++swift_interop_hint(
++    name = "_FoundationCShims_interop",
++    module_map = "Sources/_FoundationCShims/include/module.modulemap",
++    module_name = "_FoundationCShims",
++)
++
++cc_library(
++    name = "_FoundationCShims",
++    srcs = glob(["Sources/_FoundationCShims/*.c"]),
++    hdrs = glob([
++        "Sources/_FoundationCShims/include/*.h",
++    ]),
++    aspect_hints = [":_FoundationCShims_interop"],
++    copts = ["-w"] + select({
++        ":wasi": [
++            "-nobuiltininc",
++            "-D_WASI_EMULATED_GETPID",
++            "-D_WASI_EMULATED_SIGNAL",
++            "-D_WASI_EMULATED_MMAN",
++        ],
++        ":linux": ["-D_GNU_SOURCE"],
++        "//conditions:default": [],
++    }),
++    includes = ["Sources/_FoundationCShims/include"],
++    linkopts = select({
++        ":wasi": _WASI_LINKOPTS,
++        "//conditions:default": [],
++    }),
++    textual_hdrs = ["Sources/_FoundationCShims/include/module.modulemap"],
++    # For the C compile only: Swift's Clang importer has its own built-in
++    # headers, and these beside them would be redefinitions.
++    implementation_deps = select({
++        ":wasi": ["//bazel:wasi_compiler_headers"],
++        "//conditions:default": [],
++    }),
++)
++
++# #Predicate, #Expression and the bundle macros, for the host compiler.
++swift_compiler_plugin(
++    name = "FoundationMacros",
++    srcs = glob(["Sources/FoundationMacros/*.swift"]),
++    copts = _FEATURES,
++    module_name = "FoundationMacros",
++    deps = [
++        "@swift-syntax//:SwiftCompilerPlugin",
++        "@swift-syntax//:SwiftDiagnostics",
++        "@swift-syntax//:SwiftOperators",
++        "@swift-syntax//:SwiftParser",
++        "@swift-syntax//:SwiftParserDiagnostics",
++        "@swift-syntax//:SwiftSyntax",
++        "@swift-syntax//:SwiftSyntaxBuilder",
++        "@swift-syntax//:SwiftSyntaxMacros",
++    ],
++)
++
++swift_library(
++    name = "FoundationEssentials",
++    srcs = glob(["Sources/FoundationEssentials/**/*.swift"]),
++    copts = [
++        # Upstream's code, built as the toolchain builds it; its warnings are
++        # upstream's to fix.
++        "-suppress-warnings",
++        "-enable-experimental-feature",
++        "VariadicGenerics",
++        "-enable-experimental-feature",
++        "LifetimeDependence",
++        "-enable-experimental-feature",
++        "AddressableTypes",
++        "-enable-experimental-feature",
++        "AllowUnsafeAttribute",
++        "-enable-experimental-feature",
++        "BuiltinModule",
++    ] + _FEATURES + _AVAILABILITY + select({
++        ":wasi": _WASI_SWIFT,
++        ":linux": [
++            "-Xcc",
++            "-D_GNU_SOURCE",
++        ],
++        ":android": [
++            "-Xcc",
++            "-D_GNU_SOURCE",
++        ],
++        "//conditions:default": [],
++    }),
++    linkopts = select({
++        ":wasi": _WASI_LINKOPTS,
++        "//conditions:default": [],
++    }),
++    module_name = "FoundationEssentials",
++    package_name = "SwiftFoundation",
++    plugins = [":FoundationMacros"],
++    deps = [
++        ":_FoundationCShims",
++        "@swift_foundation_collections//:_FoundationCollections",
++    ],
++)
++
++# Formatting, locales, calendars and time zones beyond Essentials', over
++# ICU. ICU itself is the Swift SDK's (swift-foundation-icu, prebuilt as
++# lib_FoundationICU.a with its `_FoundationICU` module map in the SDK's
++# resources), linked by name as upstream's static build does.
++swift_library(
++    name = "FoundationInternationalization",
++    srcs = glob(["Sources/FoundationInternationalization/**/*.swift"]),
++    copts = [
++        "-suppress-warnings",
++        "-enable-experimental-feature",
++        "ImportMacroAliases",
++        "-Xfrontend",
++        "-public-autolink-library",
++        "-Xfrontend",
++        "_FoundationICU",
++    ] + _FEATURES + _AVAILABILITY + select({
++        ":wasi": _WASI_SWIFT,
++        ":linux": [
++            "-Xcc",
++            "-D_GNU_SOURCE",
++        ],
++        ":android": [
++            "-Xcc",
++            "-D_GNU_SOURCE",
++        ],
++        "//conditions:default": [],
++    }),
++    module_name = "FoundationInternationalization",
++    package_name = "SwiftFoundation",
++    plugins = [":FoundationMacros"],
++    deps = [
++        ":FoundationEssentials",
++        ":_FoundationCShims",
++        "@swift_foundation_collections//:_FoundationCollections",
++    ],
++)
+diff --git a/MODULE.bazel b/MODULE.bazel
+new file mode 100644
+index 00000000..0167f1a6
+--- /dev/null
++++ b/MODULE.bazel
+@@ -0,0 +1,38 @@
++# swift-foundation as a Bazel module, for Isomer.
++#
++# Upstream builds with SwiftPM and CMake. The project's registry carries
++# swiftlang's release tag with these Bazel files and a few patches added
++# (its swift-foundation entries). Isomer builds its `Foundation` for
++# non-Apple platforms (wasm, Android, Linux, Windows) from the targets here;
++# on Apple platforms Foundation is Apple's.
++#
++# The root module (Isomer, or an app) registers the Swift toolchains and picks
++# the platform; nothing here does.
++module(
++    name = "swift-foundation",
++    version = "6.3.2",
++)
++
++bazel_dep(name = "bazel_skylib", version = "1.9.0")
++bazel_dep(name = "platforms", version = "1.1.0")
++bazel_dep(name = "rules_cc", version = "0.2.18")
++bazel_dep(name = "rules_swift", version = "3.6.1")
++
++# FoundationMacros (#Predicate, #Expression, the bundle macros) is a compiler
++# plugin built for the host from swift-syntax.
++bazel_dep(name = "swift-syntax", version = "603.0.2")
++
++http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
++
++# swift-collections at the version swift-foundation's Package.swift pins
++# (exact: 1.1.6). Compiled as ONE module, `_FoundationCollections`, as the
++# toolchain's CMake build does (COLLECTIONS_FOUNDATION_TOOLCHAIN_MODULE): an app
++# that depends on swift-collections itself (SwiftNIO does) then never sees two
++# `DequeModule`s.
++http_archive(
++    name = "swift_foundation_collections",
++    build_file = "//bazel:swift_collections.BUILD",
++    sha256 = "2f558b33b6eba5b0c263110d7cb1a11b59d63059e845dc1984c65359e36f29da",
++    strip_prefix = "swift-collections-1.1.6",
++    urls = ["https://github.com/apple/swift-collections/archive/refs/tags/1.1.6.tar.gz"],
++)
+diff --git a/bazel/BUILD.bazel b/bazel/BUILD.bazel
+new file mode 100644
+index 00000000..b9cd1ef8
+--- /dev/null
++++ b/bazel/BUILD.bazel
+@@ -0,0 +1,16 @@
++# Build files for swift-foundation's dependencies (see MODULE.bazel), and the
++# headers the WebAssembly C build needs.
++
++load("@rules_cc//cc:defs.bzl", "cc_library")
++
++exports_files(glob(["*.BUILD"]))
++
++# <stdarg.h>/<stddef.h> for C compiled for wasm: the WebAssembly C toolchain
++# does not list Clang's built-in header directory and Bazel refuses headers
++# from a directory the toolchain does not own.
++cc_library(
++    name = "wasi_compiler_headers",
++    hdrs = glob(["wasi/*.h"]),
++    includes = ["wasi"],
++    visibility = ["//:__pkg__"],
++)
+diff --git a/bazel/swift_collections.BUILD b/bazel/swift_collections.BUILD
+new file mode 100644
+index 00000000..bfb2ed32
+--- /dev/null
++++ b/bazel/swift_collections.BUILD
+@@ -0,0 +1,26 @@
++# swift-collections 1.1.6 as `_FoundationCollections`: the four libraries
++# FoundationEssentials uses (DequeModule, OrderedCollections, _RopeModule and
++# the internal utilities they share) compiled into one module, as the Swift
++# toolchain's CMake build does with COLLECTIONS_FOUNDATION_TOOLCHAIN_MODULE.
++# Only FoundationEssentials may import it (-allowable-client).
++
++load("@rules_swift//swift:swift.bzl", "swift_library")
++
++swift_library(
++    name = "_FoundationCollections",
++    srcs = glob([
++        "Sources/DequeModule/**/*.swift",
++        "Sources/OrderedCollections/**/*.swift",
++        "Sources/RopeModule/**/*.swift",
++        "Sources/InternalCollectionsUtilities/**/*.swift",
++    ]),
++    copts = [
++        "-DCOLLECTIONS_SINGLE_MODULE",
++        "-Xfrontend",
++        "-allowable-client",
++        "-Xfrontend",
++        "FoundationEssentials",
++    ],
++    module_name = "_FoundationCollections",
++    visibility = ["//visibility:public"],
++)
+diff --git a/bazel/wasi/stdarg.h b/bazel/wasi/stdarg.h
+new file mode 100644
+index 00000000..80540b85
+--- /dev/null
++++ b/bazel/wasi/stdarg.h
+@@ -0,0 +1,13 @@
++/* <stdarg.h> for the WebAssembly build of _FoundationCShims: Clang's own copy lives in
++   its resource directory, which the WebAssembly C toolchain does not list
++   (Bazel refuses headers from there), and the WASI C library has none. */
++#ifndef SWIFT_FOUNDATION_BAZEL_WASI_STDARG_H
++#define SWIFT_FOUNDATION_BAZEL_WASI_STDARG_H
++typedef __builtin_va_list va_list;
++typedef __builtin_va_list __gnuc_va_list;
++#define va_start(ap, param) __builtin_va_start(ap, param)
++#define va_end(ap) __builtin_va_end(ap)
++#define va_arg(ap, type) __builtin_va_arg(ap, type)
++#define va_copy(dest, src) __builtin_va_copy(dest, src)
++#define __va_copy(dest, src) __builtin_va_copy(dest, src)
++#endif
+diff --git a/bazel/wasi/stddef.h b/bazel/wasi/stddef.h
+new file mode 100644
+index 00000000..0976b6e1
+--- /dev/null
++++ b/bazel/wasi/stddef.h
+@@ -0,0 +1,77 @@
++/* <stddef.h> for the WebAssembly build of _FoundationCShims (see stdarg.h here). It
++   follows the compiler's protocol: with a __need_ macro set, it defines only
++   what was asked for, as the C library's headers expect. */
++#if defined(__need_size_t) || defined(__need_ptrdiff_t) || defined(__need_wchar_t) \
++    || defined(__need_NULL) || defined(__need_wint_t) || defined(__need_max_align_t)
++#define SWIFT_FOUNDATION_BAZEL_STDDEF_PARTIAL 1
++#else
++#define __need_size_t
++#define __need_ptrdiff_t
++#define __need_wchar_t
++#define __need_NULL
++#define __need_max_align_t
++#define SWIFT_FOUNDATION_BAZEL_STDDEF_WHOLE 1
++#endif
++
++#ifdef __need_size_t
++#ifndef _SIZE_T
++#define _SIZE_T
++typedef __SIZE_TYPE__ size_t;
++#endif
++#undef __need_size_t
++#endif
++
++#ifdef __need_ptrdiff_t
++#ifndef _PTRDIFF_T
++#define _PTRDIFF_T
++typedef __PTRDIFF_TYPE__ ptrdiff_t;
++#endif
++#undef __need_ptrdiff_t
++#endif
++
++#ifdef __need_wchar_t
++#ifndef __cplusplus
++#ifndef _WCHAR_T
++#define _WCHAR_T
++typedef __WCHAR_TYPE__ wchar_t;
++#endif
++#endif
++#undef __need_wchar_t
++#endif
++
++#ifdef __need_wint_t
++#ifndef _WINT_T
++#define _WINT_T
++typedef __WINT_TYPE__ wint_t;
++#endif
++#undef __need_wint_t
++#endif
++
++#ifdef __need_NULL
++#undef NULL
++#ifdef __cplusplus
++#define NULL __null
++#else
++#define NULL ((void *)0)
++#endif
++#undef __need_NULL
++#endif
++
++#ifdef __need_max_align_t
++#ifndef SWIFT_FOUNDATION_BAZEL_MAX_ALIGN_T
++#define SWIFT_FOUNDATION_BAZEL_MAX_ALIGN_T
++typedef struct {
++  long long __ll;
++  long double __ld;
++} max_align_t;
++#endif
++#undef __need_max_align_t
++#endif
++
++#ifdef SWIFT_FOUNDATION_BAZEL_STDDEF_WHOLE
++#undef SWIFT_FOUNDATION_BAZEL_STDDEF_WHOLE
++#ifndef offsetof
++#define offsetof(t, d) __builtin_offsetof(t, d)
++#endif
++#endif
++#undef SWIFT_FOUNDATION_BAZEL_STDDEF_PARTIAL
