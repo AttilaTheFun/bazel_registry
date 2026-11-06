@@ -1,0 +1,104 @@
+diff --git a/swift/internal/extensions/androidsdk.BUILD b/swift/internal/extensions/androidsdk.BUILD
+index 5fbc01d9..b7f4c819 100644
+--- a/swift/internal/extensions/androidsdk.BUILD
++++ b/swift/internal/extensions/androidsdk.BUILD
+@@ -73,6 +73,7 @@ swift_tools(
+             # TODO: Remove once https://github.com/bazelbuild/rules_android_ndk/commit/efc0c191796477c540e87e0f6bb5d88d6a58cc1f is in a release
+             "-Wl,-z,max-page-size=16384",
+         ],
++        minimum_os_version = "{minimum_api}",
+         os = "android",
+         parsed_version = "{swift_version}",
+         sdkroot = "",  # Resolved in swift_toolchain.bzl
+diff --git a/swift/internal/extensions/swift_sdks.bzl b/swift/internal/extensions/swift_sdks.bzl
+index 44ab31ab..fa1a318a 100644
+--- a/swift/internal/extensions/swift_sdks.bzl
++++ b/swift/internal/extensions/swift_sdks.bzl
+@@ -72,6 +72,17 @@ def _swift_android_sdk_impl(repository_ctx):
+         fail("The Android Swift SDK bundle has an unexpected layout; " +
+              "missing {}/{}/swift-sdk.json".format(repo_root, sdk_dir_relative))
+ 
++    # The lowest Android API level among the SDK's target triples.
++    sdk_json = json.decode(repository_ctx.read(sdk_dir_relative + "/swift-sdk.json"))
++    apis = []
++    for triple in sdk_json.get("targetTriples", {}).keys():
++        api = ""
++        for char in triple.elems():
++            api = api + char if char.isdigit() else ""
++        if api:
++            apis.append(int(api))
++    minimum_api = str(min(apis)) if apis else ""
++
+     # The clang headers are provided by the Swift toolchain, not the Android SDK bundle
+     paired_usr = repository_ctx.path(repository_ctx.attr.paired_swiftc).dirname.dirname
+     clang_versions = paired_usr.get_child("lib", "clang").readdir()
+@@ -103,6 +114,7 @@ def _swift_android_sdk_impl(repository_ctx):
+             "{bundle_dir}": bundle_dir,
+             "{cxx_dir}": repo_root + "/cxx",
+             "{lib_dir}": "{}/{}/swift-resources/usr/lib".format(repo_root, sdk_dir_relative),
++            "{minimum_api}": minimum_api,
+             "{swift_version}": repository_ctx.attr.swift_version,
+             "{toolchain_repo}": repository_ctx.attr.toolchain_repo,
+         },
+diff --git a/swift/toolchains/swift_toolchain.bzl b/swift/toolchains/swift_toolchain.bzl
+index 071b2781..15c7c70a 100644
+--- a/swift/toolchains/swift_toolchain.bzl
++++ b/swift/toolchains/swift_toolchain.bzl
+@@ -635,6 +635,31 @@ def _c_compile_args(ctx, cc_toolchain):
+         variables = compile_variables,
+     )
+ 
++def _android_linkopts(linkopts, target_system_name, minimum_os_version):
++    """Checks the target API against the SDK's minimum and adjusts linkopts.
++
++    Android's loader reads RELR relocations only from API 28, so below that
++    they're packed without it.
++    """
++    api = ""
++    for char in target_system_name.elems():
++        api = api + char if char.isdigit() else ""
++    if not api:
++        return linkopts
++    if minimum_os_version and int(api) < int(minimum_os_version):
++        fail(("The Swift SDK for Android supports API {} and later, but the " +
++              "C++ toolchain targets {}.").format(minimum_os_version, target_system_name))
++    if int(api) >= 28:
++        return linkopts
++    result = []
++    for opt in linkopts:
++        if opt == "-Wl,--use-android-relr-tags":
++            continue
++        if opt == "-Wl,--pack-dyn-relocs=android+relr":
++            opt = "-Wl,--pack-dyn-relocs=android"
++        result.append(opt)
++    return result
++
+ def _android_target_system_name(ctx, cc_toolchain):
+     """Returns the Android target system name from the C compiler arguments."""
+     target_arg_prefix = "--target="
+@@ -726,7 +751,11 @@ def _swift_toolchain_impl(ctx):
+             fail("Android toolchain requires a sysroot to be set, either via the `sdkroot` attribute or by using a CC toolchain that provides one.")
+         swift_linkopts_cc_info = _swift_sdk_linkopts_cc_info(
+             ctx.label,
+-            ["--sysroot={}".format(sdkroot)] + ctx.attr.linkopts,
++            ["--sysroot={}".format(sdkroot)] + _android_linkopts(
++                ctx.attr.linkopts,
++                target_system_name,
++                ctx.attr.minimum_os_version,
++            ),
+             ctx.files.linker_inputs,
+         )
+     elif ctx.attr.os == "wasi":
+@@ -985,6 +1014,12 @@ This is not additive: when set, it *replaces* the runtime link flags the
+ toolchain would otherwise compute, because those are specific to a Linux host
+ toolchain and do not apply to a cross-compiled SDK target. Leave it unset for an
+ ordinary host toolchain, which computes its own flags.
++""",
++            ),
++            "minimum_os_version": attr.string(
++                doc = """\
++The lowest OS version the SDK supports. For Android, an API level: targeting a
++lower one fails.
+ """,
+             ),
+             "os": attr.string(
