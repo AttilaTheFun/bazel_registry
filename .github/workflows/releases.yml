@@ -1,0 +1,86 @@
+name: Releases
+# Adds the newest published release of each module tools/add_releases.py
+# follows (isomer) that the registry hasn't got, so a release reaches the
+# registry without anyone opening a pull request for it: every hour, or at
+# once when dispatched (Actions › Releases › Run workflow, or the API's
+# workflow dispatch), for one module or one release of it.
+#
+# The new entry goes in a pull request this workflow opens and merges once
+# Check passes on it, as an agent merges one: entries need no code owner.
+# Check is dispatched on the pull request's branch, since a pull request
+# opened with the workflow's own token starts no workflow. A pull request
+# already open for the same versions (an earlier run's, whose check or merge
+# failed) is left for someone to look at, not opened again.
+#
+# On GitHub's own runners (the repository is public): Check's run still
+# takes a container from OS Server's single-use runners.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      module:
+        description: "Only this module (default: every one tools/add_releases.py follows)"
+        required: false
+      tag:
+        description: "With module: only this release's tag (e.g. v0.40.1), of any age"
+        required: false
+# One run at a time, none cancelled.
+concurrency:
+  group: releases
+  cancel-in-progress: false
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: New releases
+        id: add
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODULE: ${{ inputs.module }}
+          TAG: ${{ inputs.tag }}
+        run: python3 tools/add_releases.py ${MODULE:+--module "$MODULE"} ${TAG:+--tag "$TAG"}
+      - name: Check
+        if: steps.add.outputs.title != ''
+        run: python3 tools/check_registry.py
+      - name: Pull request, checked and merged
+        if: steps.add.outputs.title != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.add.outputs.title }}
+          BRANCH: ${{ steps.add.outputs.branch }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          open="$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url // ""')"
+          if [ -n "$open" ]; then
+            echo "::warning::$TITLE: $open is open already"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add modules
+          git commit -q -m "$TITLE" -m "Added by the Releases workflow: $RUN"
+          git push -q --force origin "$BRANCH"
+          head="$(git rev-parse HEAD)"
+          pr="$(gh pr create --base main --head "$BRANCH" --title "$TITLE" \
+            --body "Published releases, added by tools/add_releases.py in $RUN, which merges this once Check passes.")"
+          echo "$pr"
+          gh workflow run check.yml --ref "$BRANCH"
+          # The dispatched run, once GitHub lists it.
+          check=""
+          for _ in $(seq 30); do
+            check="$(gh run list --workflow check.yml --branch "$BRANCH" --event workflow_dispatch \
+              --json databaseId,headSha --jq "map(select(.headSha == \"$head\"))[0].databaseId // \"\"")"
+            [ -z "$check" ] || break
+            sleep 10
+          done
+          [ -n "$check" ] || { echo "::error::Check's run on $BRANCH didn't start"; exit 1; }
+          gh run watch "$check" --exit-status --interval 30 > /dev/null
+          gh pr merge "$pr" --squash --delete-branch
