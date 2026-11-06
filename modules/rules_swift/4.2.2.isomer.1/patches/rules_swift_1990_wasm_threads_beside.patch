@@ -1,0 +1,169 @@
+diff --git a/swift/extensions.bzl b/swift/extensions.bzl
+index 497177a9..dcd06086 100644
+--- a/swift/extensions.bzl
++++ b/swift/extensions.bzl
+@@ -79,7 +79,7 @@ def _setup_android_sdk(*, tag, toolchain_name, swift_version, platforms, swift_s
+         )
+     return build_file_content
+ 
+-def _setup_wasm_sdk(*, tag, toolchain_name, swift_version, platforms, swift_sdk_releases):
++def _setup_wasm_sdk(*, tag, toolchain_name, swift_version, platforms, swift_sdk_releases, side_by_side = False):
+     """Creates the repositories for a `swift.wasm_sdk` tag.
+ 
+     Args:
+@@ -88,6 +88,9 @@ def _setup_wasm_sdk(*, tag, toolchain_name, swift_version, platforms, swift_sdk_
+         swift_version: The Swift release version of that toolchain.
+         platforms: The host platforms the toolchain was created for.
+         swift_sdk_releases: Bundled Swift SDK checksum metadata by release.
++        side_by_side: Whether both a single-threaded and a threads SDK are
++            declared, in which case each SDK's toolchains require their value
++            of `@rules_swift//swift/toolchains/wasm:threads`.
+ 
+     Returns:
+         BUILD file content with the `toolchain` declarations to add to the
+@@ -114,7 +117,8 @@ def _setup_wasm_sdk(*, tag, toolchain_name, swift_version, platforms, swift_sdk_
+ 
+     build_file_content = ""
+     for platform in platforms:
+-        repository_name = "{}_wasm_sdk_{}".format(toolchain_name, platform)
++        repository_format = "{}_wasm_threads_sdk_{}" if side_by_side and threads else "{}_wasm_sdk_{}"
++        repository_name = repository_format.format(toolchain_name, platform)
+         swift_wasm_sdk_repository(
+             name = repository_name,
+             sha256 = sha256,
+@@ -126,6 +130,7 @@ def _setup_wasm_sdk(*, tag, toolchain_name, swift_version, platforms, swift_sdk_
+         build_file_content += wasm_sdk_toolchains_for_platform(
+             platform = platform,
+             sdk_repository = repository_name,
++            threads = threads if side_by_side else None,
+         )
+     return build_file_content
+ 
+@@ -158,10 +163,9 @@ def _standalone_toolchain_impl(module_ctx):
+         root_module.tags.android_sdk,
+         "android_sdk",
+     )
+-    wasm_sdk_tag = _single_sdk_tag(
+-        root_module.tags.wasm_sdk,
+-        "wasm_sdk",
+-    )
++    wasm_sdk_tags = root_module.tags.wasm_sdk
++    if len(wasm_sdk_tags) > 2 or (len(wasm_sdk_tags) == 2 and wasm_sdk_tags[0].threads == wasm_sdk_tags[1].threads):
++        fail("At most two `wasm_sdk` tags may be used: one single-threaded and one with `threads = True`.")
+ 
+     if len(root_module.tags.toolchain) > 1:
+         fail("swift.toolchain() can currently only be called once. Please file an issue if you need multiple toolchains in a single module.")
+@@ -169,7 +173,7 @@ def _standalone_toolchain_impl(module_ctx):
+     if not root_module.tags.toolchain:
+         if android_sdk_tag:
+             fail("The `android_sdk` tag requires a `toolchain` tag.")
+-        if wasm_sdk_tag:
++        if wasm_sdk_tags:
+             fail("The `wasm_sdk` tag requires a `toolchain` tag.")
+ 
+     toolchains_build_file_content = ""
+@@ -213,13 +217,14 @@ def _standalone_toolchain_impl(module_ctx):
+                 platforms = platforms,
+                 swift_sdk_releases = swift_sdk_releases,
+             )
+-        if wasm_sdk_tag:
++        for wasm_sdk_tag in wasm_sdk_tags:
+             toolchains_build_file_content += _setup_wasm_sdk(
+                 tag = wasm_sdk_tag,
+                 toolchain_name = toolchain.name,
+                 swift_version = swift_version,
+                 platforms = platforms,
+                 swift_sdk_releases = swift_sdk_releases,
++                side_by_side = len(wasm_sdk_tags) == 2,
+             )
+ 
+         toolchains_repository(
+@@ -257,6 +262,11 @@ versions known to this version of rules_swift, but is required when `url` or
+             default = False,
+             doc = """\
+ If `True`, target `wasm32-unknown-wasip1-threads`. Requires `url` and `sha256`.
++
++A module may declare two `wasm_sdk` tags, one with `threads = True` and one
++without. The threads SDK's toolchains are then named `*_wasm32_threads_*` and
++require the `@rules_swift//swift/toolchains/wasm:threaded` constraint; the other
++SDK's toolchains require `:single_threaded`, the default.
+ """,
+         ),
+         "url": attr.string(
+diff --git a/swift/internal/extensions/toolchains.bzl b/swift/internal/extensions/toolchains.bzl
+index c969e318..e942acb6 100644
+--- a/swift/internal/extensions/toolchains.bzl
++++ b/swift/internal/extensions/toolchains.bzl
+@@ -183,7 +183,7 @@ def android_sdk_toolchains_for_platform(platform, sdk_repository):
+         )
+     return content
+ 
+-def wasm_sdk_toolchains_for_platform(platform, sdk_repository):
++def wasm_sdk_toolchains_for_platform(platform, sdk_repository, threads = None):
+     """Returns `toolchain` declarations for a WebAssembly Swift SDK.
+ 
+     Args:
+@@ -191,19 +191,31 @@ def wasm_sdk_toolchains_for_platform(platform, sdk_repository):
+             standalone toolchain the SDK is paired with.
+         sdk_repository: The name of the repository created by
+             `swift_wasm_sdk_repository`.
++        threads: `None` if this is the module's only WebAssembly SDK;
++            otherwise whether it is the threads SDK, whose toolchains are
++            named `*_wasm32_threads_*` and require
++            `@rules_swift//swift/toolchains/wasm:threaded` (the other's
++            require `:single_threaded`).
+ 
+     Returns:
+         BUILD file content declaring the Swift and C++ toolchains.
+     """
++    target_compatible_with = [
++        "@platforms//os:wasi",
++        "@platforms//cpu:wasm32",
++    ]
++    target = "wasm32"
++    if threads == True:
++        target = "wasm32_threads"
++        target_compatible_with.append("@rules_swift//swift/toolchains/wasm:threaded")
++    elif threads == False:
++        target_compatible_with.append("@rules_swift//swift/toolchains/wasm:single_threaded")
+     return _WASM_SDK_TOOLCHAIN_PLATFORM.format(
+         exec_compatible_with = _exec_compatible_with_for_platform(platform),
+         platform = platform,
+         sdk_repository = sdk_repository,
+-        target = "wasm32",
+-        target_compatible_with = [
+-            "@platforms//os:wasi",
+-            "@platforms//cpu:wasm32",
+-        ],
++        target = target,
++        target_compatible_with = target_compatible_with,
+         target_suffix = "wasm32",
+     )
+ 
+diff --git a/swift/toolchains/wasm/BUILD b/swift/toolchains/wasm/BUILD
+new file mode 100644
+index 00000000..3eb09092
+--- /dev/null
++++ b/swift/toolchains/wasm/BUILD
+@@ -0,0 +1,21 @@
++# Selects between the WebAssembly Swift SDKs when a module declares both a
++# single-threaded and a threads one.
++
++package(default_visibility = ["//visibility:public"])
++
++licenses(["notice"])
++
++constraint_setting(
++    name = "threads",
++    default_constraint_value = ":single_threaded",
++)
++
++constraint_value(
++    name = "single_threaded",
++    constraint_setting = ":threads",
++)
++
++constraint_value(
++    name = "threaded",
++    constraint_setting = ":threads",
++)
