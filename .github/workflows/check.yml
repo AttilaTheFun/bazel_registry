@@ -1,6 +1,7 @@
 name: Check
 # Every pull request and every commit on main: each version's archive is
-# what its entry says.
+# what its entry says. The Releases workflow dispatches it on the branch of
+# each pull request it opens, which starts no workflow itself.
 #
 # On OS Server's single-use runners (label bazel_registry-jit: a Linux
 # container for each job), which lease a container from that OS Server for
@@ -9,6 +10,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 # A pull request's newer push cancels its older run, so only the head's
 # check runs; main's run to the end.
 # Every run but a pull request's is a group of its own (GitHub keeps one

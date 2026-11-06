@@ -30,8 +30,13 @@ modules/<name>/<version>/source.json   its tag archive: url, integrity, strip_pr
 
 ## Adding a version
 
-A version is added only for a released tag, by a pull request, which the
-code owner approves:
+A version is added only for a released tag. The Releases workflow
+(`.github/workflows/releases.yml`) adds the newest published release of
+each module `tools/add_releases.py` follows (isomer) every hour, or at once
+when dispatched (for one module, or one release of any age): it opens the
+pull request, runs Check on it and merges it.
+
+Any other version is added by a pull request of its own:
 
 ```
 tools/add_version.py <owner/repo> <tag>      # e.g. AttilaTheFun/isomer v0.36.0
