@@ -1,0 +1,10 @@
+{
+    "url": "https://github.com/keith/hermetic_android_toolchains/archive/refs/tags/0.5.0.tar.gz",
+    "integrity": "sha256-wZVohnHuPU/XCMm0zEHS+LRGI3ssyqVv1uis91IKFAk=",
+    "strip_prefix": "hermetic_android_toolchains-0.5.0",
+    "patches": {
+        "hermetic_android_toolchains_linux_any_cpu.patch": "sha256-Fo9DbcBghzN1q2caivQfuCIzMgAyevQC7VBpwxVT0EU=",
+        "module_dot_bazel.patch": "sha256-O9RFksdw06bkfS5y8Z7rev03KUpJCzJ1L7yqf7ZsdvM="
+    },
+    "patch_strip": 1
+}
