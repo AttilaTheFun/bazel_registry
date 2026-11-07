@@ -8,7 +8,11 @@ name: Releases
 # The new entry goes in a pull request this workflow opens and merges once
 # Check passes on it, as an agent merges one: entries need no code owner.
 # Check is dispatched on the pull request's branch, since a pull request
-# opened with the workflow's own token starts no workflow. A pull request
+# opened with the workflow's own token starts no workflow of its own accord.
+# Since Actions may open pull requests, it does start Check's pull_request
+# run, held for a maintainer's approval, and main's protection holds the
+# merge until that run passes: this workflow approves it and waits for it
+# too (bazel_registry#40 sat there). A pull request
 # already open for the same versions (an earlier run's, whose check or merge
 # failed) is left for someone to look at, not opened again.
 #
@@ -83,4 +87,14 @@ jobs:
           done
           [ -n "$check" ] || { echo "::error::Check's run on $BRANCH didn't start"; exit 1; }
           gh run watch "$check" --exit-status --interval 30 > /dev/null
+          # The pull request's own run of Check, if it has one, held for
+          # approval: approved, and waited for.
+          for held in $(gh run list --workflow check.yml --branch "$BRANCH" --event pull_request \
+              --json databaseId,headSha,conclusion \
+              --jq "map(select(.headSha == \"$head\" and .conclusion == \"action_required\"))[].databaseId"); do
+            gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$held/approve" > /dev/null \
+              || { echo "::error::Check's run $held on $pr waits for approval; approve it, then merge $pr"; exit 1; }
+            sleep 5
+            gh run watch "$held" --exit-status --interval 30 > /dev/null
+          done
           gh pr merge "$pr" --squash --delete-branch
