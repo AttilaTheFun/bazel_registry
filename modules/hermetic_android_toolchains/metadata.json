@@ -1,0 +1,11 @@
+{
+    "homepage": "https://github.com/keith/hermetic_android_toolchains",
+    "maintainers": [],
+    "repository": [
+        "github:keith/hermetic_android_toolchains"
+    ],
+    "versions": [
+        "0.5.0.isomer.1"
+    ],
+    "yanked_versions": {}
+}
