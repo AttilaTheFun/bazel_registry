@@ -1,0 +1,10 @@
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -1,6 +1,6 @@
+ module(
+     name = "rules_swift_package_manager",
+-    version = "0.0.0",
++    version = "1.25.0.isomer.1",
+ )
+ 
+ # MARK: - Runtime Dependencies

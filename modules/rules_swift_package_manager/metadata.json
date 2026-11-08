@@ -1,0 +1,11 @@
+{
+    "homepage": "https://github.com/cgrindel/rules_swift_package_manager",
+    "maintainers": [],
+    "repository": [
+        "github:cgrindel/rules_swift_package_manager"
+    ],
+    "versions": [
+        "1.25.0.isomer.1"
+    ],
+    "yanked_versions": {}
+}
