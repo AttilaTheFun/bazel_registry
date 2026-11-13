@@ -1,0 +1,9 @@
+{
+    "url": "https://github.com/AttilaTheFun/isomer/archive/refs/tags/v0.52.1.tar.gz",
+    "integrity": "sha256-eOY7Xvic/6Siugw8D7U2zvZUz8Ak6vs/aFybD324xFQ=",
+    "strip_prefix": "isomer-0.52.1",
+    "patches": {
+        "module_dot_bazel.patch": "sha256-t9BfTRaUVBPlP2FAW2YU8zDIjq+h+fGkm689jMtyyEY="
+    },
+    "patch_strip": 1
+}
