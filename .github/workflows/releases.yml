@@ -1,7 +1,8 @@
 name: Releases
 # Adds the newest published release of each module tools/add_releases.py
-# follows (isomer) that the registry hasn't got, so a release reaches the
-# registry without anyone opening a pull request for it: every hour, or at
+# follows (isomer, and isomer_android_maven from isomer's releases) that the
+# registry hasn't got, so a release reaches the registry without anyone
+# opening a pull request for it: every hour, or at
 # once when dispatched (Actions › Releases › Run workflow, or the API's
 # workflow dispatch), for one module or one release of it.
 #

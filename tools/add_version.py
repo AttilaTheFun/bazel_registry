@@ -4,6 +4,7 @@
     tools/add_version.py <owner/repo> <tag> [--module NAME] [--version X.Y.Z]
     tools/add_version.py <owner/repo> <tag or commit> --fork --version V [--patch FILE]...
     tools/add_version.py <owner/repo> v0.38.N --stamped
+    tools/add_version.py <owner/repo> v0.54.N --stamped --path <directory>
 
 Fetches GitHub's archive of the tag and writes modules/<name>/<version>/:
 - source.json: the archive's url, its sha256 `integrity` and the
@@ -23,6 +24,13 @@ build's own (0.38.N). The tag v0.38.N's MODULE.bazel then says 0.38.0, and
 the entry carries one patch (module_dot_bazel.patch) setting module()'s
 version to the tag's, as a fork's entry does. Only that difference is
 accepted: the tag's MAJOR.MINOR with BUILD 0.
+
+A module in a directory of another's repository (--path), released from
+its tags with it (isomer_android_maven, isomer's android/maven_module): its
+MODULE.bazel is that directory's, and `strip_prefix` names the directory
+inside the archive. Stamped, its dependency on the repository's own module
+(the MODULE.bazel at the archive's root), when it asks for the same
+MAJOR.MINOR.0, is set to the tag's version too: the two are one release.
 
 A fork (--fork): a module this account carries changes to until upstream
 takes them, from a commit or tag of the fork. --version names the entry, an
@@ -101,6 +109,13 @@ def with_version(text, version):
     return text[:declaration.start(1)] + body + text[declaration.end(1):]
 
 
+def with_dependency_version(text, name, old, new):
+    """The MODULE.bazel text with a bazel_dep on `name` at version `old` set
+    to `new` (unchanged when it has none, or another version)."""
+    return re.sub(r'(bazel_dep\(\s*name\s*=\s*"' + re.escape(name) + r'"\s*,\s*version\s*=\s*")' + re.escape(old) + r'"',
+                  lambda match: match.group(1) + new + '"', text)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("repository", help="owner/repo on GitHub")
@@ -110,6 +125,9 @@ def main():
     parser.add_argument("--fork", action="store_true", help="a fork's commit or tag: patched, its version set by --version")
     parser.add_argument("--stamped", action="store_true",
                         help="a release whose MODULE.bazel says MAJOR.MINOR.0 (CI stamps the build): the entry sets the tag's version")
+    parser.add_argument("--path",
+                        help="the module's directory in the tag's tree, when it isn't the root (a module released with "
+                             "its repository's own)")
     parser.add_argument("--patch", action="append", default=[], help="with --fork: a patch to apply (strip 1), in order")
     parser.add_argument("--drop-includes", action="store_true",
                         help="with --fork: remove MODULE.bazel's include() lines (their files must be dev-only)")
@@ -120,6 +138,11 @@ def main():
         sys.exit("add_version.py: --patch and --drop-includes are for a fork's entry (--fork)")
     if args.fork and not args.version:
         sys.exit("add_version.py: a fork's entry needs --version")
+    if args.path and args.fork:
+        sys.exit("add_version.py: --path is for a release of our own, not a fork's entry")
+    path = args.path.strip("/") if args.path else ""
+    if path and (path.startswith(".") or "/../" in f"/{path}/"):
+        sys.exit(f"add_version.py: --path {args.path} is not a directory inside the archive")
 
     commit = re.fullmatch(r"[0-9a-f]{40}", args.ref) is not None
     if commit and not args.fork:
@@ -137,11 +160,12 @@ def main():
                 sys.exit(f"add_version.py: {url} unpacks to {len(tops)} directories, not one")
             prefix = tops.pop()
             archive.extractall(work, filter="data")
-        tree = Path(work) / prefix
+        top = Path(work) / prefix
+        tree = top / path if path else top
 
         def read_module(what):
             if not (tree / "MODULE.bazel").exists():
-                sys.exit(f"add_version.py: {what} has no MODULE.bazel at its root")
+                sys.exit(f"add_version.py: {what} has no MODULE.bazel at " + (path if path else "its root"))
             text = (tree / "MODULE.bazel").read_bytes()
             name, declared = module_version(text.decode())
             if not name:
@@ -193,6 +217,12 @@ def main():
                              + ("" if args.stamped else f" (or, stamped by CI, {line}: --stamped)"))
                 before = original.decode()
                 after = with_version(before, version)
+                if path:
+                    # The repository's own module, released with this one.
+                    owner, _ = module_version((top / "MODULE.bazel").read_text()) if (top / "MODULE.bazel").exists() \
+                        else (None, None)
+                    if owner:
+                        after = with_dependency_version(after, owner, line, version)
                 diff = "".join(difflib.unified_diff(before.splitlines(keepends=True), after.splitlines(keepends=True),
                                                     "a/MODULE.bazel", "b/MODULE.bazel"))
                 patches.append((MODULE_PATCH, diff.encode()))
@@ -206,7 +236,7 @@ def main():
         sys.exit(f"add_version.py: {name}@{version} is already in the registry; a version is never replaced")
     version_dir.mkdir(parents=True)
     (version_dir / "MODULE.bazel").write_bytes(module_file)
-    source = {"url": url, "integrity": sha256(data), "strip_prefix": prefix}
+    source = {"url": url, "integrity": sha256(data), "strip_prefix": f"{prefix}/{path}" if path else prefix}
     if patches:
         (version_dir / "patches").mkdir()
         for file, body in patches:
@@ -228,6 +258,7 @@ def main():
 
     print(f"added {name}@{version} from {url}")
     print(f"  integrity {source['integrity']}, strip_prefix {prefix}"
+          + (f"/{path}" if path else "")
           + (f", patches {', '.join(file for file, _ in patches)}" if patches else ""))
     print("next: python3 tools/check_registry.py")
 

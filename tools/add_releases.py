@@ -9,9 +9,11 @@ the repository its metadata.json names (GitHub's API: published ones, no
 drafts or prereleases) and adds the newest, when it sorts above the
 module's newest entry, with `tools/add_version.py <owner/repo> <tag>
 --stamped`: the tag's MODULE.bazel names its own version or, stamped by CI,
-MAJOR.MINOR.0. Only the newest: the registry has the versions someone asked
-for, not every release since (two released between runs leave the older
-out); --tag adds that one release, of any age.
+MAJOR.MINOR.0. A module kept in a directory of another's repository
+(WITHIN) is added from the same releases with --path, from the first
+release that has it. Only the newest: the registry has the versions
+someone asked for, not every release since (two released between runs
+leave the older out); --tag adds that one release, of any age.
 
 GH_TOKEN (else GITHUB_TOKEN), when set, authenticates the API's requests.
 Under GitHub Actions, when anything was added, it writes `title` (e.g.
@@ -37,7 +39,15 @@ ROOT = Path(__file__).resolve().parent.parent
 # The modules whose releases are added as they are published: a release of
 # our own, from its tag (not a fork's patched commit, which someone adds by
 # hand with add_version.py --fork).
-FOLLOWED = ["isomer"]
+FOLLOWED = ["isomer", "isomer_android_maven"]
+
+# Modules released from a directory of another's repository, with it: the
+# directory, and the first MAJOR.MINOR whose releases have it. Their
+# metadata.json names that repository.
+WITHIN = {
+    # Isomer's AndroidX (isomer's docs/android_maven.md), from 0.54.
+    "isomer_android_maven": ("android/maven_module", "0.54"),
+}
 
 
 def releases(repository):
@@ -84,13 +94,25 @@ def main():
                 continue
             tag = max(tags, key=lambda tag: version_key(tag.removeprefix("v")))
         version = tag.removeprefix("v")
+        path, first = WITHIN.get(name, (None, None))
+        if first and version_key(version) < version_key(first):
+            print(f"{name}: {repository}'s {tag} is older than its first release, {first}")
+            continue
         if version in listed:
             print(f"{name}@{version} is in the registry already")
             continue
         if not args.tag and newest and version_key(version) <= version_key(newest):
             print(f"{name}: its newest release, {tag}, is older than the newest entry, {newest}")
             continue
-        subprocess.run([sys.executable, str(ROOT / "tools" / "add_version.py"), repository, tag, "--stamped"], check=True)
+        command = [sys.executable, str(ROOT / "tools" / "add_version.py"), repository, tag, "--stamped"]
+        if path:
+            # Not added (the release lacks the directory, say) leaves the
+            # others' entries to go ahead, with a warning.
+            if subprocess.run(command + ["--path", path, "--module", name]).returncode != 0:
+                print(f"::warning::{name}: {tag} not added (add_version.py --path {path})")
+                continue
+        else:
+            subprocess.run(command, check=True)
         added.append((name, version))
 
     if added:
