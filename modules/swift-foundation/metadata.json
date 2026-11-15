@@ -1,8 +1,8 @@
 {
-    "homepage": "https://github.com/AttilaTheFun/swift-foundation",
+    "homepage": "https://github.com/AttilaTheFun/isomer_hermetic_toolchains",
     "maintainers": [],
     "repository": [
-        "github:AttilaTheFun/swift-foundation"
+        "github:AttilaTheFun/isomer_hermetic_toolchains"
     ],
     "versions": [
         "6.3.2.isomer.1",
