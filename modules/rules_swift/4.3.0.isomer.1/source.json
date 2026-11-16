@@ -1,0 +1,13 @@
+{
+    "url": "https://github.com/bazelbuild/rules_swift/archive/refs/tags/4.3.0.tar.gz",
+    "integrity": "sha256-2Q20kOgutrDcuvxAgRflbM7gSdNVgAj6Ac+aCAfyJzk=",
+    "strip_prefix": "rules_swift-4.3.0",
+    "patches": {
+        "rules_swift_1860_wasm_threads_sdk.patch": "sha256-pEIa/4bBToBYzjsRicZhAEOZL9k9kkLlIhRu2MBNRZ0=",
+        "rules_swift_1990_wasm_threads_beside.patch": "sha256-8GN0E/FNhfDCrLaCJmWliCUgXw2Uo+jm8+pV8FidUsg=",
+        "rules_swift_1995_android_cxx_interop.patch": "sha256-viy8/VReIqkxKYcNmX6s1prRLqk6UrR2XcGID377G1s=",
+        "rules_swift_2000_android_below_28.patch": "sha256-ajAVNJkyGsPdxCxn/T2spEz/J2a0nnmx6Bk/WjE0+bI=",
+        "module_dot_bazel.patch": "sha256-G1Az0QtwMflgmimjDjay4SlQQtQr3glmd9Q+XsJtL40="
+    },
+    "patch_strip": 1
+}
