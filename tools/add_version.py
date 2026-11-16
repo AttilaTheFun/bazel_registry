@@ -182,14 +182,14 @@ def main():
         patches = []  # (file name, bytes), in the order they apply
         if args.fork:
             version = args.version
-            for path in args.patch:
-                body = Path(path).read_bytes()
+            for patch_file in args.patch:  # not `path`: that is --path's directory
+                body = Path(patch_file).read_bytes()
                 applied = subprocess.run(["patch", "-p1", "--forward", "--batch", "--silent"], input=body, cwd=tree,
                                          capture_output=True)
                 if applied.returncode != 0:
-                    sys.exit(f"add_version.py: {path} doesn't apply to {args.ref}:\n"
+                    sys.exit(f"add_version.py: {patch_file} doesn't apply to {args.ref}:\n"
                              + applied.stdout.decode() + applied.stderr.decode())
-                patches.append((Path(path).name, body))
+                patches.append((Path(patch_file).name, body))
             _, name, _ = read_module(f"{args.ref} with its patches")
             before = (tree / "MODULE.bazel").read_text()
             after = with_version(before, version)
