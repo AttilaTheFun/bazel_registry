@@ -5,7 +5,8 @@
         "github:keith/hermetic_android_toolchains"
     ],
     "versions": [
-        "0.5.0.isomer.1"
+        "0.5.0.isomer.1",
+        "0.5.0.isomer.2"
     ],
     "yanked_versions": {}
 }
