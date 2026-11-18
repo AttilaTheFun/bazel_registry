@@ -1,0 +1,11 @@
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -27,7 +27,7 @@
+ 
+ module(
+     name = "isomer",
+-    version = "0.57.0",
++    version = "0.57.1",
+     # The oldest Bazel a consumer builds with (isomer itself takes
+     # .bazelversion's): 8.5 has module_ctx.facts, which windows_support (the
+     # MSVC runtime, a dependency's) reads. CI's bazel8 job builds the
