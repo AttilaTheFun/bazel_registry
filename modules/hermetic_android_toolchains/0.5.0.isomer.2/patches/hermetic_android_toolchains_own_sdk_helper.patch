@@ -1,0 +1,186 @@
+diff -ruN a/sdk/BUILD.bazel b/sdk/BUILD.bazel
+--- a/sdk/BUILD.bazel
++++ b/sdk/BUILD.bazel
+@@ -1,5 +1,6 @@
+ exports_files([
+     "BUILD.androidsdk.tpl",
+     "BUILD.sdkredirect.tpl",
++    "sdk_helper.bzl",
+     "versions.json",
+ ])
+diff -ruN a/sdk/repositories.bzl b/sdk/repositories.bzl
+--- a/sdk/repositories.bzl
++++ b/sdk/repositories.bzl
+@@ -966,7 +966,9 @@
+ 
+     _write_platform_package_metadata(rctx, sdk)
+     rctx.file(".sdk-root", "")
+-    rctx.symlink(Label("@rules_android//rules/android_sdk_repository:helper.bzl"), "helper.bzl")
++    # The repository's own helper, not rules_android's private one, whose
++    # contents differ between rules_android releases.
++    rctx.symlink(Label("//sdk:sdk_helper.bzl"), "helper.bzl")
+     rctx.template(
+         "BUILD.bazel",
+         Label("//sdk:BUILD.sdkredirect.tpl"),
+diff -ruN a/sdk/sdk_helper.bzl b/sdk/sdk_helper.bzl
+--- /dev/null
++++ b/sdk/sdk_helper.bzl
+@@ -0,0 +1,158 @@
++# Copyright 2016 The Bazel Authors. All rights reserved.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#    http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++"""What the generated SDK repository's BUILD file loads from ":helper.bzl".
++
++Copied from rules_android 0.7.3's rules/android_sdk_repository/helper.bzl
++(string_flag, create_system_images_filegroups and the maps it reads), so the
++repository no longer links rules_android's own file: that one is a private
++helper whose contents change between releases (before 0.7 it had int_flag,
++not string_flag), and a root that pins an older rules_android failed loading
++@androidsdk//:all.
++"""
++
++def _string_flag_impl(ctx):
++    allowed_values = ctx.attr.values
++    value = ctx.build_setting_value
++    if len(allowed_values) != 0 and value not in ctx.attr.values:
++        fail(
++            "Error setting %s: invalid value '%s'. Allowed values are %s" % (
++                ctx.label,
++                value,
++                ",".join([str(val) for val in allowed_values]),
++            ),
++        )
++
++string_flag = rule(
++    implementation = _string_flag_impl,
++    build_setting = config.string(flag = True),
++    attrs = {
++        "values": attr.string_list(
++            doc = "The list of allowed values for this setting. An error is raised if any other value is given.",
++        ),
++    },
++    doc = "A string-typed build setting that can be set on the command line",
++)
++
++TAGDIR_TO_TAG_MAP = {
++    "google_apis_playstore": "playstore",
++    "google_apis": "google",
++    "default": "android",
++    "android-tv": "tv",
++    "android-wear": "wear",
++}
++
++ARCHDIR_TO_ARCH_MAP = {
++    "x86": "x86",
++    "armeabi-v7a": "arm",
++}
++
++# buildifier: disable=unnamed-macro
++def create_system_images_filegroups(system_image_dirs):
++    """Generate filegroups for the system images in the Android SDK.
++
++    Args:
++      system_image_dirs: list of strings, the directories containing system image
++          files to be used to create android_device rules.
++    """
++
++    # These images will need to be updated as Android releases new system images.
++    # We are intentionally not adding future releases because there is no
++    # guarantee that they will work out of the box. Supported system images should
++    # be added here once they have been confirmed to work with the Bazel Android
++    # testing infrastructure.
++    system_images = [
++        (tag, str(api), arch)
++        for tag in ["android", "google"]
++        for api in [10] + list(range(15, 20)) + list(range(21, 30))
++        for arch in ("x86", "arm")
++    ] + [
++        ("playstore", str(api), "x86")
++        for api in list(range(24, 30))
++    ]
++    tv_images = [
++        ("tv", str(api), "x86")
++        for api in range(21, 30)
++    ] + [
++        ("tv", "21", "arm"),
++        ("tv", "23", "arm"),
++    ]
++    wear_images = [
++        ("wear", str(api), "x86")
++        for api in [23, 25, 26, 28]
++    ] + [
++        ("wear", str(api), "arm")
++        for api in [23, 25]
++    ]
++    supported_system_images = system_images + tv_images + wear_images
++
++    installed_system_images_dirs = {}
++    for system_image_dir in system_image_dirs:
++        apidir, tagdir, archdir = system_image_dir.split("/")[1:]
++        if "-" not in apidir:
++            continue
++        api = apidir.split("-")[1]  # "android-24" --> "24", "android-O" --> "O"
++        if tagdir not in TAGDIR_TO_TAG_MAP:
++            continue
++        tag = TAGDIR_TO_TAG_MAP[tagdir]
++        if archdir not in ARCHDIR_TO_ARCH_MAP:
++            continue
++        arch = ARCHDIR_TO_ARCH_MAP[archdir]
++        if (tag, api, arch) in supported_system_images:
++            name = "emulator_images_%s_%s_%s" % (tag, api, arch)
++            installed_system_images_dirs[name] = system_image_dir
++        else:
++            # TODO(bazel-team): If the user has an unsupported system image installed,
++            # should we print a warning? This includes all 64-bit system-images.
++            pass
++
++    for (tag, api, arch) in supported_system_images:
++        name = "emulator_images_%s_%s_%s" % (tag, api, arch)
++        if name in installed_system_images_dirs:
++            system_image_dir = installed_system_images_dirs[name]
++
++            # For supported system images that exist in /sdk/system-images/, we
++            # create a filegroup with their contents.
++            native.filegroup(
++                name = name,
++                srcs = native.glob([
++                    "%s/**" % system_image_dir,
++                ]),
++            )
++            native.filegroup(
++                name = "%s_qemu2_extra" % name,
++                srcs = native.glob(["%s/kernel-ranchu" % system_image_dir], allow_empty = True),
++            )
++        else:
++            # For supported system images that are not installed in the SDK, we
++            # create a "poison pill" genrule to display a helpful error message to
++            # a user who attempts to run a test against an android_device that
++            # they don't have the system image for installed.
++            native.genrule(
++                name = name,
++                outs = [
++                    # Necessary so that the build doesn't fail in analysis because
++                    # android_device expects a file named source.properties.
++                    "poison_pill_for_%s/source.properties" % name,
++                ],
++                cmd = """echo \
++          This rule requires that the Android SDK used by Bazel has the \
++          following system image installed: %s. Please install this system \
++          image through the Android SDK Manager and try again. ; \
++          exit 1
++          """ % name,
++            )
++            native.filegroup(
++                name = "%s_qemu2_extra" % name,
++                srcs = [],
++            )  # buildifier: disable=unnamed-macro
