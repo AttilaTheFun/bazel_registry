@@ -1,36 +1,33 @@
 name: Check
 # Every pull request and every commit on main: each version's archive is
-# what its entry says. The Releases workflow dispatches it on the branch of
-# each pull request it opens, which starts no workflow itself.
+# what its entry says (tools/check_registry.py, which fetches each archive
+# over the network and needs only Python 3 and `patch`). The Releases
+# workflow dispatches it on the branch of each pull request it opens, which
+# starts no workflow itself.
 #
-# On OS Server's single-use runners (label bazel_registry-jit: a Linux
-# container for each job), which lease a container from that OS Server for
-# the check (tools/ci/check.sh).
+# On GitHub's own runners (the repository is public): the job holds a
+# read-only token and no secrets, so a fork's pull request runs it too.
 on:
   pull_request:
   push:
     branches: [main]
   workflow_dispatch:
-# A pull request's newer push cancels its older run, so only the head's
-# check runs; main's run to the end.
 # Every run but a pull request's is a group of its own (GitHub keeps one
 # pending run a group and cancels the rest); a pull request's newer push
-# cancels its older run.
+# cancels its older run, so only the head's check runs; main's run to the
+# end.
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('check-pr-{0}', github.event.pull_request.number) || format('check-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
-# Whom the job's lease is for: with the runner's `ci` key, `<job>-<run>@ci`.
-env:
-  OSS_CLIENT_ID: ${{ github.job }}-${{ github.run_id }}
 jobs:
   check:
-    # A self-hosted runner never runs a fork's code.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, bazel_registry-jit]
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      # exec: the runner's cancel reaches oss, which releases the container.
-      - run: exec tools/ci/check.sh
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - run: python3 --version && patch --version | head -1
+      - run: python3 tools/check_registry.py
