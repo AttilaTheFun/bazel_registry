@@ -32,8 +32,8 @@ modules/<name>/<version>/source.json   its tag archive: url, integrity, strip_pr
 
 A version is added only for a released tag. The Releases workflow
 (`.github/workflows/releases.yml`) adds the newest published release of
-each module `tools/add_releases.py` follows (isomer, and isomer_android_maven
-and isomer_apple from isomer's releases) every hour, or at once
+each module `tools/add_releases.py` follows (isomer, and isomer_android,
+isomer_android_maven and isomer_apple from isomer's releases) every hour, or at once
 when dispatched (for one module, or one release of any age): it opens the
 pull request, runs Check on it and merges it.
 
@@ -65,9 +65,10 @@ names that directory inside the archive, and its `MODULE.bazel` is the
 directory's. Stamped, its dependency on the repository's own module, when
 it asks for the same MAJOR.MINOR.0, is set to the tag's version too: the two
 are one release. isomer_android_maven (Isomer's AndroidX, isomer's
-`android/maven_module`, from 0.54) and isomer_apple (Isomer's iPhone and Mac
-apps, isomer's `apple/module`, from 0.58) are two; `tools/add_releases.py`
-adds them with each isomer release (its `WITHIN`):
+`android/maven_module`, from 0.54), isomer_apple (Isomer's iPhone and Mac
+apps, isomer's `apple/module`, from 0.58) and isomer_android (Isomer's
+Android rules, isomer's `android/module`, from 0.59) are three;
+`tools/add_releases.py` adds them with each isomer release (its `WITHIN`):
 
 ```
 tools/add_version.py AttilaTheFun/isomer v0.54.1 --stamped --path android/maven_module
