@@ -39,12 +39,14 @@ ROOT = Path(__file__).resolve().parent.parent
 # The modules whose releases are added as they are published: a release of
 # our own, from its tag (not a fork's patched commit, which someone adds by
 # hand with add_version.py --fork).
-FOLLOWED = ["isomer", "isomer_android_maven", "isomer_apple"]
+FOLLOWED = ["isomer", "isomer_android", "isomer_android_maven", "isomer_apple"]
 
 # Modules released from a directory of another's repository, with it: the
 # directory, and the first MAJOR.MINOR whose releases have it. Their
 # metadata.json names that repository.
 WITHIN = {
+    # Isomer's Android rules (isomer's docs/platform_modules.md), from 0.59.
+    "isomer_android": ("android/module", "0.59"),
     # Isomer's AndroidX (isomer's docs/android_maven.md), from 0.54.
     "isomer_android_maven": ("android/maven_module", "0.54"),
     # Isomer's iPhone and Mac apps (isomer's docs/platform_modules.md), from 0.58.
