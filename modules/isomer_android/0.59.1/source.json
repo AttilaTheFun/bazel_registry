@@ -1,0 +1,9 @@
+{
+    "url": "https://github.com/AttilaTheFun/isomer/archive/refs/tags/v0.59.1.tar.gz",
+    "integrity": "sha256-/JnQcPiGzBn0kAKB7JPpI4T1ibtZIJMdTcS/VkUaYn0=",
+    "strip_prefix": "isomer-0.59.1/android/module",
+    "patches": {
+        "module_dot_bazel.patch": "sha256-E6ERF+e+VNFsQu2usjIdQ6ZcUgD1CKx+kl3WKWcyyn4="
+    },
+    "patch_strip": 1
+}

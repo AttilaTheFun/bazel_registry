@@ -4,6 +4,8 @@
     "repository": [
         "github:AttilaTheFun/isomer"
     ],
-    "versions": [],
+    "versions": [
+        "0.59.1"
+    ],
     "yanked_versions": {}
 }
