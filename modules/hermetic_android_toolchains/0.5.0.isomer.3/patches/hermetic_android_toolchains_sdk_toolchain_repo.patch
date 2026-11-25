@@ -1,0 +1,430 @@
+diff -ruN a/extensions.bzl b/extensions.bzl
+--- a/extensions.bzl
++++ b/extensions.bzl
+@@ -12,8 +12,10 @@
+     "//sdk:repositories.bzl",
+     "ANDROID_SDK_LICENSE_ENV",
+     "EMULATOR_TAG",
++    "SDK_FILES_REPOSITORY",
+     "SDK_TAG",
+     "SYSTEM_IMAGE_TAG",
++    "hermetic_android_sdk_files_repository",
+     "hermetic_android_sdk_platform_repository",
+     "hermetic_android_sdk_repository",
+ )
+@@ -101,13 +103,24 @@
+         name = "androidsdk_{}".format(platform)
+         hermetic_android_sdk_platform_repository(
+             name = name,
+-            shared_root = "@androidsdk//:.sdk-root",
++            shared_root = "@{}//:.sdk-root".format(SDK_FILES_REPOSITORY),
+             platform = platform,
+             **kwargs
+         )
+         sdk_platform_repositories[platform] = name
++    # The SDK platform and system images: fetched only when an Android build
++    # needs them, through @androidsdk's aliases.
++    hermetic_android_sdk_files_repository(
++        name = SDK_FILES_REPOSITORY,
++        toolchain_repository = "androidsdk",
++        **kwargs
++    )
++
++    # The toolchains rules_android registers (@androidsdk//:all): loaded in
++    # every build, so it downloads nothing itself.
+     hermetic_android_sdk_repository(
+         name = "androidsdk",
++        files_repository = SDK_FILES_REPOSITORY,
+         platform_repositories = sdk_platform_repositories,
+         **kwargs
+     )
+diff -ruN a/sdk/BUILD.bazel b/sdk/BUILD.bazel
+--- a/sdk/BUILD.bazel
++++ b/sdk/BUILD.bazel
+@@ -1,5 +1,6 @@
+ exports_files([
+     "BUILD.androidsdk.tpl",
++    "BUILD.sdkfiles.tpl",
+     "BUILD.sdkredirect.tpl",
+     "sdk_helper.bzl",
+     "versions.json",
+diff -ruN a/sdk/BUILD.sdkfiles.tpl b/sdk/BUILD.sdkfiles.tpl
+--- /dev/null
++++ b/sdk/BUILD.sdkfiles.tpl
+@@ -0,0 +1,28 @@
++"""Generated Android SDK files repository.
++
++The SDK platform (android.jar and the rest) and the system images, what the
++toolchain repository (@%{toolchain_repository}) leaves out so that loading it
++downloads nothing. Fetched only when an Android build needs these files.
++"""
++
++load(":helper.bzl", "create_system_images_filegroups")
++load("@rules_java//java:defs.bzl", "java_import")
++
++package(default_visibility = ["//visibility:public"])
++
++exports_files([
++    ".sdk-root",
++    "platforms/android-%{api_level}/android.jar",
++    "platforms/android-%{api_level}/core-for-system-modules.jar",
++    "platforms/android-%{api_level}/framework.aidl",
++    "platforms/android-%{api_level}/source.properties",
++])
++
++%{optional_java_imports}
++
++java_import(
++    name = "core-for-system-modules-jar",
++    jars = ["platforms/android-%{api_level}/core-for-system-modules.jar"],
++)
++
++%{system_image_filegroups}
+diff -ruN a/sdk/BUILD.sdkredirect.tpl b/sdk/BUILD.sdkredirect.tpl
+--- a/sdk/BUILD.sdkredirect.tpl
++++ b/sdk/BUILD.sdkredirect.tpl
+@@ -1,23 +1,28 @@
+-"""Generated Android SDK redirect repository."""
++"""Generated Android SDK toolchain repository.
++
++It holds the toolchains, flags and tools' aliases, and nothing downloaded:
++the SDK platform and system images are in the files repository
++(@%{files_repository}), and build-tools and platform-tools in the per-host
++platform repositories, so registering this repository's toolchains (which
++loads this package in every build) fetches none of them. They are fetched
++when an Android action needs them, through the aliases below.
++"""
+ 
+ load(
+     ":helper.bzl",
+-    "create_system_images_filegroups",
++    "create_system_images_aliases",
+     "string_flag",
+ )
+ load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+ load("@rules_android//rules:rules.bzl", "android_sdk")
+-load("@rules_java//java:defs.bzl", "java_binary", "java_import")
++load("@rules_java//java:defs.bzl", "java_binary")
+ load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+ 
+ package(default_visibility = ["//visibility:public"])
+ 
+-exports_files([
+-    ".sdk-root",
+-    "platforms/android-%{api_level}/android.jar",
+-    "platforms/android-%{api_level}/core-for-system-modules.jar",
+-    "platforms/android-%{api_level}/framework.aidl",
+-])
++# The files and Java imports of the SDK platform, in the files repository,
++# under the names they had here.
++%{files_aliases}
+ 
+ toolchain_type(name = "sdk_toolchain_type")
+ 
+@@ -71,13 +76,6 @@
+     actual = ":always_true",
+ )
+ 
+-%{optional_java_imports}
+-
+-java_import(
+-    name = "core-for-system-modules-jar",
+-    jars = ["platforms/android-%{api_level}/core-for-system-modules.jar"],
+-)
+-
+ java_binary(
+     name = "d8_compat_dx",
+     main_class = "com.google.devtools.build.android.r8.CompatDx",
+@@ -171,7 +169,7 @@
+         "@platforms//os:windows": ":aidl",
+         "//conditions:default": ":aidl_binary",
+     }),
+-    android_jar = "platforms/android-%{api_level}/android.jar",
++    android_jar = "@%{files_repository}//:platforms/android-%{api_level}/android.jar",
+     apksigner = ":apksigner",
+     build_tools_version = "%{build_tools_version}",
+     dexdump = ":dexdump",
+@@ -179,7 +177,7 @@
+         ":dx_standalone_dexer": ":fail",
+         "//conditions:default": ":d8_compat_dx",
+     }),
+-    framework_aidl = "platforms/android-%{api_level}/framework.aidl",
++    framework_aidl = "@%{files_repository}//:platforms/android-%{api_level}/framework.aidl",
+     legacy_main_dex_list_generator = ":generate_main_dex_list",
+     main_dex_classes = ":main_dex_classes",
+     main_dex_list_creator = ":main_dex_list_creator",
+@@ -187,7 +185,7 @@
+         ":disallow_proguard": ":fail",
+         "//conditions:default": "@remote_java_tools//:proguard",
+     }),
+-    source_properties = "platforms/android-%{api_level}/source.properties",
++    source_properties = "@%{files_repository}//:platforms/android-%{api_level}/source.properties",
+     tags = [
+         "__ANDROID_RULES_MIGRATION__",
+         "manual",
+@@ -204,4 +202,4 @@
+     toolchain_type = ":sdk_toolchain_type",
+ )
+ 
+-%{system_image_filegroups}
++%{system_image_aliases}
+diff -ruN a/sdk/repositories.bzl b/sdk/repositories.bzl
+--- a/sdk/repositories.bzl
++++ b/sdk/repositories.bzl
+@@ -17,6 +17,11 @@
+ 
+ ANDROID_SDK_LICENSE_ENV = "ACCEPTED_ANDROID_SDK_LICENSE_VERSION"
+ 
++# The repository with the SDK platform and system images, beside @androidsdk
++# (the toolchain repository, which downloads nothing). The platform
++# repositories name its files.
++SDK_FILES_REPOSITORY = "androidsdk_files"
++
+ _SYSTEM_IMAGE_ARCHES = [
+     "arm64-v8a",
+     "armeabi-v7a",
+@@ -377,9 +382,9 @@
+         "build-tools/{platform}/{build_tools_directory}/lib/apksigner.jar",
+         "build-tools/{platform}/{build_tools_directory}/lib/d8.jar",
+         ":build_tools_libs",
+-        "@androidsdk//:platforms/android-{api_level}/android.jar",
+-        "@androidsdk//:platforms/android-{api_level}/core-for-system-modules.jar",
+-        "@androidsdk//:platforms/android-{api_level}/framework.aidl",
++        "@{files_repository}//:platforms/android-{api_level}/android.jar",
++        "@{files_repository}//:platforms/android-{api_level}/core-for-system-modules.jar",
++        "@{files_repository}//:platforms/android-{api_level}/framework.aidl",
+     ]
+     if build_tools_major_version <= 30:
+         base_srcs = [
+@@ -407,6 +412,7 @@
+                 api_level = sdk["api_level"],
+                 build_tools_directory = build_tools_directory,
+                 executable_extension = executable_extension,
++                files_repository = SDK_FILES_REPOSITORY,
+                 platform = platform,
+             ))
+             for src in srcs
+@@ -489,6 +495,32 @@
+ """.format(api_level = api_level))
+     return "\n".join(blocks)
+ 
++def _optional_java_import_names(api_level):
++    major = int(api_level.split(".")[0])
++    names = []
++    if major >= 23:
++        names.extend(["org_apache_http_legacy-{}".format(api_level), "org_apache_http_legacy"])
++    if major >= 28:
++        names.append("legacy_test-{}".format(api_level))
++    if major >= 29:
++        names.extend(["android_car-{}".format(api_level), "android_car"])
++    return names
++
++def _files_aliases(files_repository, api_level):
++    # Every target the files repository has that this one had before it was
++    # split off, under the same name: what rules_android and an app name.
++    names = [
++        ".sdk-root",
++        "platforms/android-{}/android.jar".format(api_level),
++        "platforms/android-{}/core-for-system-modules.jar".format(api_level),
++        "platforms/android-{}/framework.aidl".format(api_level),
++        "core-for-system-modules-jar",
++    ] + _optional_java_import_names(api_level)
++    return "\n\n".join([
++        _plain_alias(name, external_label(files_repository, name))
++        for name in names
++    ])
++
+ def _platform_rules(sdk):
+     return "\n".join([_platform_rules_for(platform, sdk) for platform in sdk["platforms"]])
+ 
+@@ -779,6 +811,20 @@
+         ])
+     return "\n\n".join(blocks)
+ 
++def _system_image_aliases(files_repository, system_images):
++    if not system_images:
++        return ""
++    blocks = ["create_system_images_aliases(repository = \"{}\")".format(files_repository)]
++    for system_image in system_images:
++        directory = system_image["directory"]
++        arch = directory.split("/")[-1]
++        if arch in _RULES_ANDROID_SYSTEM_IMAGE_ARCHES:
++            continue
++        name = _system_image_target_name(directory)
++        for target in [name, "{}_qemu2_extra".format(name)]:
++            blocks.append(_plain_alias(target, external_label(files_repository, target), tags = ["manual"]))
++    return "\n\n".join(blocks)
++
+ def _system_image_filegroups(system_images):
+     if not system_images:
+         return ""
+@@ -944,15 +990,14 @@
+         description = _xml_escape(properties["Pkg.Desc"]),
+     ))
+ 
+-def _hermetic_android_sdk_repository_impl(rctx):
++def _hermetic_android_sdk_files_repository_impl(rctx):
+     if not rctx.attr.version:
+-        fail("hermetic_android_sdk_repository requires version.")
++        fail("hermetic_android_sdk_files_repository requires version.")
+     if not rctx.attr.build_tools_version:
+-        fail("hermetic_android_sdk_repository requires build_tools_version.")
++        fail("hermetic_android_sdk_files_repository requires build_tools_version.")
+ 
+     require_license(rctx, ANDROID_SDK_LICENSE_ENV, "SDK")
+     sdk = _resolve_sdk(rctx)
+-    emulator = _resolve_emulator(rctx, sdk["platforms"], require_common_platforms = True)
+     versions_json = json.decode(rctx.read(rctx.attr._versions_json))
+     system_images = _resolve_system_images(rctx, versions_json)
+     _download_system_images(rctx, system_images)
+@@ -971,16 +1016,76 @@
+     rctx.symlink(Label("//sdk:sdk_helper.bzl"), "helper.bzl")
+     rctx.template(
+         "BUILD.bazel",
++        Label("//sdk:BUILD.sdkfiles.tpl"),
++        substitutions = {
++            "%{api_level}": sdk["api_level"],
++            "%{optional_java_imports}": _optional_java_imports(sdk["api_level"]),
++            "%{system_image_filegroups}": _system_image_filegroups(system_images),
++            "%{toolchain_repository}": rctx.attr.toolchain_repository,
++        },
++    )
++
++    if hasattr(rctx, "repo_metadata"):
++        return rctx.repo_metadata(reproducible = True)
++    return None
++
++hermetic_android_sdk_files_repository = repository_rule(
++    implementation = _hermetic_android_sdk_files_repository_impl,
++    doc = "The SDK platform and system images, which the toolchain repository's aliases name.",
++    attrs = {
++        "api_level": attr.string(),
++        "build_tools_directory": attr.string(),
++        "build_tools_sha256s": attr.string_dict(),
++        "build_tools_strip_prefixes": attr.string_dict(),
++        "build_tools_urls": attr.string_dict(),
++        "build_tools_version": attr.string(mandatory = True),
++        "emulator_version": attr.string(),
++        "platform_tools_sha256s": attr.string_dict(),
++        "platform_tools_urls": attr.string_dict(),
++        "platforms_sha256": attr.string(),
++        "platforms_strip_prefix": attr.string(),
++        "platforms_url": attr.string(),
++        "system_images": attr.string_list(),
++        "toolchain_repository": attr.string(mandatory = True),
++        "version": attr.string(mandatory = True),
++        "_versions_json": attr.label(
++            default = Label("//sdk:versions.json"),
++            allow_single_file = True,
++        ),
++    },
++    environ = [ANDROID_SDK_LICENSE_ENV],
++)
++
++def _hermetic_android_sdk_repository_impl(rctx):
++    # The toolchain repository: toolchains, flags and aliases, nothing
++    # downloaded (the files repository and the platform repositories download,
++    # and check the license), so that registering @androidsdk//:all, which
++    # every build loads, fetches nothing.
++    if not rctx.attr.version:
++        fail("hermetic_android_sdk_repository requires version.")
++    if not rctx.attr.build_tools_version:
++        fail("hermetic_android_sdk_repository requires build_tools_version.")
++
++    sdk = _resolve_sdk(rctx)
++    emulator = _resolve_emulator(rctx, sdk["platforms"], require_common_platforms = True)
++    versions_json = json.decode(rctx.read(rctx.attr._versions_json))
++    system_images = _resolve_system_images(rctx, versions_json)
++    files_repository = rctx.attr.files_repository
++
++    rctx.symlink(Label("//sdk:sdk_helper.bzl"), "helper.bzl")
++    rctx.template(
++        "BUILD.bazel",
+         Label("//sdk:BUILD.sdkredirect.tpl"),
+         substitutions = {
+             "%{api_level}": sdk["api_level"],
+             "%{build_tools_directory}": sdk["build_tools_directory"],
+             "%{build_tools_version}": sdk["build_tools_version"],
+             "%{emulator_aliases}": _emulator_redirect_aliases(rctx, emulator),
++            "%{files_aliases}": _files_aliases(files_repository, sdk["api_level"]),
++            "%{files_repository}": files_repository,
+             "%{platform_aliases}": _platform_redirect_aliases(rctx, sdk),
+             "%{platform_rules}": _platform_redirect_rules(sdk),
+-            "%{optional_java_imports}": _optional_java_imports(sdk["api_level"]),
+-            "%{system_image_filegroups}": _system_image_filegroups(system_images),
++            "%{system_image_aliases}": _system_image_aliases(files_repository, system_images),
+         },
+     )
+ 
+@@ -998,6 +1103,7 @@
+         "build_tools_urls": attr.string_dict(),
+         "build_tools_version": attr.string(mandatory = True),
+         "emulator_version": attr.string(),
++        "files_repository": attr.string(mandatory = True),
+         "platform_repositories": attr.string_dict(mandatory = True),
+         "platform_tools_sha256s": attr.string_dict(),
+         "platform_tools_urls": attr.string_dict(),
+@@ -1011,5 +1117,4 @@
+             allow_single_file = True,
+         ),
+     },
+-    environ = [ANDROID_SDK_LICENSE_ENV],
+ )
+diff -ruN a/sdk/sdk_helper.bzl b/sdk/sdk_helper.bzl
+--- a/sdk/sdk_helper.bzl
++++ b/sdk/sdk_helper.bzl
+@@ -57,15 +57,7 @@
+     "armeabi-v7a": "arm",
+ }
+ 
+-# buildifier: disable=unnamed-macro
+-def create_system_images_filegroups(system_image_dirs):
+-    """Generate filegroups for the system images in the Android SDK.
+-
+-    Args:
+-      system_image_dirs: list of strings, the directories containing system image
+-          files to be used to create android_device rules.
+-    """
+-
++def _supported_system_images():
+     # These images will need to be updated as Android releases new system images.
+     # We are intentionally not adding future releases because there is no
+     # guarantee that they will work out of the box. Supported system images should
+@@ -94,7 +86,36 @@
+         ("wear", str(api), "arm")
+         for api in [23, 25]
+     ]
+-    supported_system_images = system_images + tv_images + wear_images
++    return system_images + tv_images + wear_images
++
++# buildifier: disable=unnamed-macro
++def create_system_images_aliases(repository):
++    """Aliases every system image target create_system_images_filegroups makes.
++
++    The toolchain repository's, into the files repository that has the images,
++    so that loading the toolchain repository downloads none of them.
++
++    Args:
++      repository: the files repository's name.
++    """
++    for (tag, api, arch) in _supported_system_images():
++        name = "emulator_images_%s_%s_%s" % (tag, api, arch)
++        for target in [name, "%s_qemu2_extra" % name]:
++            native.alias(
++                name = target,
++                actual = "@%s//:%s" % (repository, target),
++                tags = ["manual"],
++            )
++
++# buildifier: disable=unnamed-macro
++def create_system_images_filegroups(system_image_dirs):
++    """Generate filegroups for the system images in the Android SDK.
++
++    Args:
++      system_image_dirs: list of strings, the directories containing system image
++          files to be used to create android_device rules.
++    """
++    supported_system_images = _supported_system_images()
+ 
+     installed_system_images_dirs = {}
+     for system_image_dir in system_image_dirs:
