@@ -1,0 +1,17 @@
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -20,7 +20,7 @@
+ 
+ module(
+     name = "isomer_apple",
+-    version = "0.62.0",
++    version = "0.62.1",
+ )
+ 
+ # Declared before anything that brings rules_cc, as isomer's own
+@@ -43,4 +43,4 @@
+ 
+ # The isomer whose isomer_application declares these platforms (and the
+ # heads the shells link), the same release.
+-bazel_dep(name = "isomer", version = "0.62.0")
++bazel_dep(name = "isomer", version = "0.62.1")

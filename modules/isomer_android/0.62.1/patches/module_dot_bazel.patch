@@ -1,0 +1,20 @@
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -25,7 +25,7 @@
+ 
+ module(
+     name = "isomer_android",
+-    version = "0.62.0",
++    version = "0.62.1",
+ )
+ 
+ # rules_android's `android_binary` and rules_kotlin's `kt_android_library`
+@@ -47,7 +47,7 @@
+ 
+ # The isomer these macros build on (Android's Swift libraries, the Kotlin
+ # runtime's sources, isomer_application), the same release.
+-bazel_dep(name = "isomer", version = "0.62.0")
++bazel_dep(name = "isomer", version = "0.62.1")
+ 
+ # The tools defs.bzl's hand-built APKs and the emulator runner use (lazy:
+ # fetched only by a build that uses them).
