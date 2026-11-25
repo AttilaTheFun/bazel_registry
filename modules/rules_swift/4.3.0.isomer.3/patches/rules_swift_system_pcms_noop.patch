@@ -1,0 +1,29 @@
+diff --git a/swift/swift_interop_hint.bzl b/swift/swift_interop_hint.bzl
+--- a/swift/swift_interop_hint.bzl
++++ b/swift/swift_interop_hint.bzl
+@@ -76,6 +76,15 @@
+ """,
+             mandatory = False,
+         ),
++        "system_pcms": attr.label_list(
++            allow_files = True,
++            doc = """\
++Precompiled Clang modules of the system SDK that the hinted module stands
++on. Accepted so that BUILD files written for toolchains that use them load
++here; these rules build system modules themselves and ignore it.
++""",
++            mandatory = False,
++        ),
+     },
+     doc = """\
+ Defines an aspect hint that associates non-Swift BUILD targets with additional
+diff --git a/system_sdks/BUILD.bazel b/system_sdks/BUILD.bazel
+new file mode 100644
+--- /dev/null
++++ b/system_sdks/BUILD.bazel
+@@ -0,0 +1,5 @@
++# System SDK modules, for BUILD files written for toolchains that provide
++# them (`swift_interop_hint`'s `system_pcms` names targets here). These
++# rules build the SDK's modules themselves, so the package declares none.
++
++package(default_visibility = ["//visibility:public"])
